@@ -70,7 +70,15 @@ module.exports = {
   creates: byKey(creates),
   searches: byKey(searches),
 
-  // We surface API errors ourselves in afterResponse, so let the platform skip
-  // its own throw-on-non-2xx.
-  flags: { skipThrowForStatus: true },
+  flags: {
+    // We surface API errors ourselves in afterResponse, so let the platform
+    // skip its own throw-on-non-2xx.
+    skipThrowForStatus: true,
+    // Don't let the platform silently strip empty strings / nulls / empty
+    // arrays+objects from bundle.inputData before perform (Zapier check D028).
+    // Every perform handles blanks explicitly (asArray, parseDict,
+    // `|| undefined`, removeMissingValuesFrom), so input handling is
+    // predictable and visible in this codebase rather than in the platform.
+    cleanInputData: false,
+  },
 }

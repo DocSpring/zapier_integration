@@ -23,6 +23,11 @@ const connectionLabel = (z, bundle) => {
   return `DocSpring ${env} · ${region}${tokenId ? ` · ${tokenId}` : ''}`
 }
 
+// Where users find their credentials. Zapier check D002 wants every auth
+// field's help text to link directly to the relevant page.
+const API_TOKENS_URL = 'https://app.docspring.com/api_tokens'
+const AUTH_DOCS_URL = 'https://docspring.com/docs/api-guide/authentication/'
+
 module.exports = {
   // Custom (not basic) so we can collect a Region dropdown + self-hosted host
   // alongside the token. The Basic Authorization header is built in middleware.
@@ -38,7 +43,11 @@ module.exports = {
       default: 'us',
       choices: REGION_CHOICES,
       helpText:
-        'The DocSpring region your account is in. Choose **Self-hosted / Enterprise** to enter a custom domain.',
+        'The DocSpring region your account is in — it matches the dashboard you sign in to: ' +
+        '[app.docspring.com](https://app.docspring.com) (United States), ' +
+        '[app-eu.docspring.com](https://app-eu.docspring.com) (Europe) or ' +
+        '[app-au.docspring.com](https://app-au.docspring.com) (Australia). ' +
+        'Choose **Self-hosted / Enterprise** to enter a custom domain.',
     },
     {
       key: 'custom_host',
@@ -46,8 +55,9 @@ module.exports = {
       type: 'string',
       required: false,
       helpText:
-        'Only for the **Self-hosted / Enterprise** region. Your DocSpring domain, e.g. `docspring.example.com` ' +
-        '(include `http://` and a port for local installs).',
+        'Only for the **Self-hosted / Enterprise** region. Just the domain of your DocSpring install, ' +
+        'e.g. `docspring.example.com` (or `http://localhost:3000` for a local install). ' +
+        'No path or query string.',
     },
     {
       key: 'token_id',
@@ -56,14 +66,19 @@ module.exports = {
       required: true,
       helpText:
         'Your DocSpring API Token ID. Starts with `api_` (live) or `api_test_` (test). ' +
-        'Create one under Settings → API Tokens.',
+        `Create one on the [API Tokens page](${API_TOKENS_URL}) of your DocSpring dashboard ` +
+        '(Settings → API Tokens; use the EU/AU dashboard for those regions). ' +
+        `See the [authentication docs](${AUTH_DOCS_URL}).`,
     },
     {
       key: 'token_secret',
       label: 'API Token Secret',
       type: 'password',
       required: true,
-      helpText: 'The API Token Secret shown when you created the token.',
+      helpText:
+        'The API Token Secret shown when you created the token on the ' +
+        `[API Tokens page](${API_TOKENS_URL}). It is only displayed once — ` +
+        'if you no longer have it, create a new token.',
     },
   ],
 }

@@ -1,7 +1,7 @@
 {
   "name": "docspring-zapier",
   "version": "1.0.1",
-  "description": "DocSpring is the document generation platform for developers. We make it easy for programmers to fill out and sign PDF forms.",
+  "description": "DocSpring is a document generation platform for developers. Fill out and sign PDF forms, and generate PDFs from templates.",
   "main": "index.js",
   "scripts": {
     "test": "jest --testTimeout 10000",
@@ -13,7 +13,7 @@
     "npm": ">=5.6.0"
   },
   "dependencies": {
-    "zapier-platform-core": "19.0.0"
+    "zapier-platform-core": "19.1.0"
   },
   "devDependencies": {
     "jest": "^29.6.0",

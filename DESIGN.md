@@ -99,6 +99,18 @@ type → would trip check D024) but remain in the sample so they still map.
   the API's `password` param in perform.
 - npm + committed `package-lock.json` (Zapier build needs it); not a pnpm
   workspace member. Tests are isolated by a local `jest.config.js`.
+- `flags.cleanInputData` is `false` (check D028): the platform does not strip
+  blank strings / nulls / empty arrays from `bundle.inputData`, so every perform
+  must (and does) handle blanks itself — `asArray`, `parseDict`,
+  `|| undefined`, and `removeMissingValuesFrom` on requests.
+- The self-hosted `custom_host` is validated by `normalizeHost` (check D026):
+  only `[http(s)://]host[:port]` is accepted; anything with a path, query,
+  fragment or credentials throws before a URL is built.
+- Every auth field's `helpText` links directly to where the value is found
+  (check D002): the region dashboards and the API Tokens page.
+- The app description on Zapier's Integration Settings page must start with
+  "DocSpring is a" (check M002). It is edited in the developer UI, not pushed
+  from `package.json` — keep the two in sync by hand.
 
 ## Deferred (future passes)
 

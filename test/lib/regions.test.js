@@ -32,6 +32,15 @@ describe('resolveBaseUrl', () => {
       /custom host is required/i
     )
   })
+
+  it('rejects a self-hosted host that is not a plain host[:port]', () => {
+    expect(() =>
+      resolveBaseUrl(bundleFor('self_hosted', 'docspring.example.com/api'))
+    ).toThrow(/invalid self-hosted host/i)
+    expect(() =>
+      resolveSyncBaseUrl(bundleFor('self_hosted', 'https://evil.com/?next='))
+    ).toThrow(/invalid self-hosted host/i)
+  })
 })
 
 describe('resolveSyncBaseUrl', () => {
