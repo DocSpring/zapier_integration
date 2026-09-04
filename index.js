@@ -25,6 +25,7 @@ const listFolders = require('./triggers/list_folders')
 // Creates
 const generatePdf = require('./creates/generate_pdf')
 const combinePdfs = require('./creates/combine_pdfs')
+const createDataRequest = require('./creates/create_data_request')
 
 // Searches
 const findTemplate = require('./searches/find_template')
@@ -48,7 +49,7 @@ const triggers = [
   listFolders,
 ]
 
-const creates = [generatePdf, combinePdfs]
+const creates = [generatePdf, combinePdfs, createDataRequest]
 const searches = [findTemplate, findSubmission]
 
 const byKey = (list) =>

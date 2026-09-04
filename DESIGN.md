@@ -86,6 +86,18 @@ type → would trip check D024) but remain in the sample so they still map.
   sync host, which waits for processing (same mechanism as Generate PDF), so it
   returns the finished combined PDF. There is no `test` input — the API derives
   test/live from the token.
+- `create_data_request` — same `POST /templates/{id}/submissions` endpoint as
+  Generate PDF, but with a `data_requests` array, so it's a **separate action**
+  (different mental model: you're requesting signatures/data, not generating a
+  finished PDF). Key differences from Generate PDF: it posts to the **standard
+  host with no `?wait=true`** (a data-request submission returns immediately in
+  `waiting_for_data_requests` and only finishes once recipients complete it), and
+  its template fields are all **optional** (`templateSchemaFieldsOptional`) since
+  recipients fill in the rest. After creating the submission it mints a 30-day
+  `email` token per recipient (`POST /data_requests/{id}/tokens`) and returns the
+  authenticated `signing_url` for each (plus `first_signing_url` for the common
+  single-recipient case), so the next Zap step can email the link. Recipients are
+  a line-item (`email`, `name`, `fields`, `auth_type` — defaults to `email_link`).
 - `find_submission` treats a 404 on ID lookup as "not found" and returns `[]`
   (Zapier search semantics; enables find-or-create). Unsubscribe likewise
   tolerates an already-deleted webhook (404).
@@ -117,7 +129,7 @@ type → would trip check D024) but remain in the sample so they still map.
 - Triggers for folder / api_token / webhook / user / account_integration /
   custom_file events.
 - Creates: Batch Generate, Create Folder, Create HTML Template, Add Fields to
-  Template, Expire Submission, Create Data Request Token.
+  Template, Expire Submission.
 - Searches: Get Combined Submission, Get Submission Batch, Get Data Request.
 - Real `performList` for data-request/batch triggers once a list endpoint exists.
 - Recursive expansion of nested object/array-of-object template fields (currently
