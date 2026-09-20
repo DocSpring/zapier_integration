@@ -44,9 +44,8 @@ module.exports = {
       choices: REGION_CHOICES,
       helpText:
         'The DocSpring region your account is in — it matches the dashboard you sign in to: ' +
-        '[app.docspring.com](https://app.docspring.com) (United States), ' +
-        '[app-eu.docspring.com](https://app-eu.docspring.com) (Europe) or ' +
-        '[app-au.docspring.com](https://app-au.docspring.com) (Australia). ' +
+        '[app.docspring.com](https://app.docspring.com) (United States) or ' +
+        '[app-eu.docspring.com](https://app-eu.docspring.com) (Europe). ' +
         'Choose **Self-hosted / Enterprise** to enter a custom domain.',
     },
     {

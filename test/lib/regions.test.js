@@ -10,7 +10,6 @@ describe('resolveBaseUrl', () => {
   it('maps each region to its standard host', () => {
     expect(resolveBaseUrl(bundleFor('us'))).toBe('https://api.docspring.com')
     expect(resolveBaseUrl(bundleFor('eu'))).toBe('https://api-eu.docspring.com')
-    expect(resolveBaseUrl(bundleFor('au'))).toBe('https://api-au.docspring.com')
   })
 
   it('defaults to US when region is missing', () => {
@@ -50,9 +49,6 @@ describe('resolveSyncBaseUrl', () => {
     )
     expect(resolveSyncBaseUrl(bundleFor('eu'))).toBe(
       'https://sync.api-eu.docspring.com'
-    )
-    expect(resolveSyncBaseUrl(bundleFor('au'))).toBe(
-      'https://sync.api-au.docspring.com'
     )
   })
 

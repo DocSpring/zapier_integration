@@ -18,7 +18,6 @@ live Zaps to migrate, so keys and shapes were chosen freely.
 - `lib/regions.js` maps each region to a standard host and a sync host:
   - US `api.docspring.com` / `sync.api.docspring.com`
   - EU `api-eu.docspring.com` / `sync.api-eu.docspring.com`
-  - AU `api-au.docspring.com` / `sync.api-au.docspring.com`
   - Self-hosted → the user's `custom_host` (single origin, no separate sync host)
 - `lib/middleware.js` `beforeRequest` prepends the standard base URL to
   root-relative request paths and attaches `Authorization: Basic

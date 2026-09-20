@@ -28,7 +28,7 @@ npm run validate     # zapier-platform validate (schema + checks)
 
 ## Auth
 
-Custom auth collecting a **Region** (US / EU / AU / Self-hosted), an **API Token
+Custom auth collecting a **Region** (US / EU / Self-hosted), an **API Token
 ID**, and an **API Token Secret**. The Basic `Authorization` header and the
 region base URL are injected by `lib/middleware.js`; Test vs Live is inferred
 from the token-id prefix (`api_test_` vs `api_`).
