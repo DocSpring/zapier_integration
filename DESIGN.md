@@ -33,9 +33,9 @@ resource, performList, inputFields })` builds a complete hook trigger:
 
 - **performSubscribe** → `POST /api/v1/webhooks` with `{ webhook: { url:
 targetUrl, event_types: [eventType], include_submission_data: true, version: 3,
-mode, template_uids, folder_uids } }`. `version: 3` is pinned so the delivery
+mode, template_ids, folder_ids } }`. `version: 3` is pinned so the delivery
   shape matches `flattenDelivery` even if the server default changes.
-- **performUnsubscribe** → `DELETE /api/v1/webhooks/{uid}`; tolerates a 404 so
+- **performUnsubscribe** → `DELETE /api/v1/webhooks/{webhook_id}`; tolerates a 404 so
   turning a Zap off always succeeds even if the webhook was already deleted.
 - **inputFields**: submission/data-request triggers offer template/folder/mode
   filters; template triggers omit mode (mode-agnostic events); combined and

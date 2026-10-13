@@ -27,8 +27,8 @@ describe('trigger scope fields match server-side scopability', () => {
     'data_request_viewed',
   ])('%s offers template/folder/mode filters', (triggerKey) => {
     expect(inputKeys(triggerKey)).toEqual([
-      'template_uids',
-      'folder_uids',
+      'template_ids',
+      'folder_ids',
       'mode',
     ])
   })
@@ -36,7 +36,7 @@ describe('trigger scope fields match server-side scopability', () => {
   it.each(['template_created', 'template_updated', 'template_deleted'])(
     '%s offers template/folder filters without mode (mode-agnostic events)',
     (triggerKey) => {
-      expect(inputKeys(triggerKey)).toEqual(['template_uids', 'folder_uids'])
+      expect(inputKeys(triggerKey)).toEqual(['template_ids', 'folder_ids'])
     }
   )
 })

@@ -22,30 +22,30 @@ describe('submission_processed trigger', () => {
         captured = body
         return true
       })
-      .reply(201, { uid: 'whk_1' })
+      .reply(201, { id: 'whk_1' })
 
     const bundle = {
       authData,
       targetUrl: 'https://hooks.zapier.com/abc',
-      inputData: { mode: 'live', template_uids: ['tpl_1'] },
+      inputData: { mode: 'live', template_ids: ['tpl_1'] },
     }
     const result = await appTester(trigger.performSubscribe, bundle)
 
-    expect(result.uid).toBe('whk_1')
+    expect(result.id).toBe('whk_1')
     expect(captured.webhook.version).toBe(3)
     expect(captured.webhook.event_types).toEqual(['submission.processed'])
     expect(captured.webhook.url).toBe('https://hooks.zapier.com/abc')
     expect(captured.webhook.mode).toBe('live')
-    expect(captured.webhook.template_uids).toEqual(['tpl_1'])
+    expect(captured.webhook.template_ids).toEqual(['tpl_1'])
   })
 
-  it('unsubscribes by webhook uid', async () => {
+  it('unsubscribes by webhook id', async () => {
     const scope = nock('https://api.docspring.com')
       .delete('/api/v1/webhooks/whk_1')
-      .reply(204)
+      .reply(200, { id: 'whk_1' })
     await appTester(trigger.performUnsubscribe, {
       authData,
-      subscribeData: { uid: 'whk_1' },
+      subscribeData: { id: 'whk_1' },
     })
     expect(scope.isDone()).toBe(true)
   })
@@ -58,7 +58,7 @@ describe('submission_processed trigger', () => {
     await expect(
       appTester(trigger.performUnsubscribe, {
         authData,
-        subscribeData: { uid: 'whk_gone' },
+        subscribeData: { id: 'whk_gone' },
       })
     ).resolves.toEqual({})
   })
@@ -71,7 +71,7 @@ describe('submission_processed trigger', () => {
     await expect(
       appTester(trigger.performUnsubscribe, {
         authData,
-        subscribeData: { uid: 'whk_1' },
+        subscribeData: { id: 'whk_1' },
       })
     ).rejects.toThrow(/Invalid DocSpring API token/)
   })
