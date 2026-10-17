@@ -66,7 +66,8 @@ module.exports = {
       helpText:
         'Your DocSpring API Token ID. Starts with `api_` (live) or `api_test_` (test). ' +
         `Create one on the [API Tokens page](${API_TOKENS_URL}) of your DocSpring dashboard ` +
-        '(Settings → API Tokens; use the EU/AU dashboard for those regions). ' +
+        '(Settings → API Tokens; for the Europe region, use ' +
+        '[app-eu.docspring.com](https://app-eu.docspring.com/api_tokens)). ' +
         `See the [authentication docs](${AUTH_DOCS_URL}).`,
     },
     {
