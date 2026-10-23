@@ -144,7 +144,7 @@ const dataRequestSample = () => {
     viewed_at: null,
     completed_at: null,
     signing_url:
-      'https://api.docspring.com/data_requests/srq_000000000000000001?token_id=tok_000000000000000001&token_secret=secret',
+      'https://app.docspring.com/signature_requests/srq_000000000000000001?token_id=tok_000000000000000001&token_secret=secret',
   }
   return Object.assign({}, base, {
     state: 'waiting_for_data_requests',

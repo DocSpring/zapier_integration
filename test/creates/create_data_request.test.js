@@ -56,7 +56,7 @@ describe('create_data_request create', () => {
         status: 'success',
         token: {
           id: 'tok_1',
-          data_request_url: 'https://api.docspring.com/data_requests/drq_1?token_id=tok_1&token_secret=s',
+          data_request_url: 'https://app.docspring.com/signature_requests/drq_1?token_id=tok_1&token_secret=s',
         },
       })
 
@@ -81,7 +81,7 @@ describe('create_data_request create', () => {
     expect(result.state).toBe('waiting_for_data_requests')
     expect(result.first_data_request_id).toBe('drq_1')
     expect(result.first_signing_url).toBe(
-      'https://api.docspring.com/data_requests/drq_1?token_id=tok_1&token_secret=s'
+      'https://app.docspring.com/signature_requests/drq_1?token_id=tok_1&token_secret=s'
     )
     expect(result.data_requests[0].signing_url).toBe(result.first_signing_url)
   })
