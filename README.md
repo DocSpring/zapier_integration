@@ -35,13 +35,14 @@ from the token-id prefix (`api_test_` vs `api_`).
 
 ## What's inside
 
-- **Triggers** (REST hooks): submission processed/failed/created/expired, data
+- **Triggers** (REST hooks): submission processed/failed/created/expired, signature
   request completed/viewed, combined submission processed/failed, batch
   processed/failed, template created/updated/deleted. Combined/batch triggers
   offer only a Mode filter — those events are not template/folder scopable. Plus hidden `list_templates` /
   `list_folders` triggers powering the dynamic dropdowns.
 - **Creates**: **Generate PDF** (template dropdown → dynamic, schema-driven
-  fields) and **Combine PDFs** — both synchronous via the `sync.api.*` host.
+  fields) and **Combine PDFs** — both synchronous via the `sync.api.*` host —
+  and **Create Signature Request**, which returns a signing link per recipient.
 - **Searches**: Find Template, Find Submission.
 
 All logic lives in `lib/`; each trigger is a thin `makeHookTrigger({...})` call.

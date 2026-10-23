@@ -37,14 +37,14 @@ mode, template_ids, folder_ids } }`. `version: 3` is pinned so the delivery
   shape matches `flattenDelivery` even if the server default changes.
 - **performUnsubscribe** → `DELETE /api/v1/webhooks/{webhook_id}`; tolerates a 404 so
   turning a Zap off always succeeds even if the webhook was already deleted.
-- **inputFields**: submission/data-request triggers offer template/folder/mode
+- **inputFields**: submission/signature request triggers offer template/folder/mode
   filters; template triggers omit mode (mode-agnostic events); combined and
   batch triggers use `scopeFields.modeOnly` — those events are not
   template/folder scopable on the server, and the webhook API rejects the
   combination with a validation error.
 - **perform** → `flattenDelivery(bundle.cleanedRequest)`.
 - **performList** → recent items from the matching list endpoint, reshaped
-  through the same envelope. Data-request and batch resources have no list
+  through the same envelope. Signature request and batch resources have no list
   endpoint, so they use a sample-backed `performList` (see
   `lib/performLists.js`); a future Rails `GET /data_requests` collection would
   let those become real lists.
@@ -89,7 +89,7 @@ type → would trip check D024) but remain in the sample so they still map.
   Generate PDF, but with a `data_requests` array, so it's a **separate action**
   (different mental model: you're requesting signatures/data, not generating a
   finished PDF). Key differences from Generate PDF: it posts to the **standard
-  host with no `?wait=true`** (a data-request submission returns immediately in
+  host with no `?wait=true`** (a signature request submission returns immediately in
   `waiting_for_data_requests` and only finishes once recipients complete it), and
   its template fields are all **optional** (`templateSchemaFieldsOptional`) since
   recipients fill in the rest. After creating the submission it mints a 30-day
@@ -97,6 +97,12 @@ type → would trip check D024) but remain in the sample so they still map.
   authenticated `signing_url` for each (plus `first_signing_url` for the common
   single-recipient case), so the next Zap step can email the link. Recipients are
   a line-item (`email`, `name`, `fields`, `auth_type` — defaults to `email_link`).
+- Naming: DocSpring calls data requests **signature requests**, so every label,
+  noun and description says "signature request". Keys, input and output field keys
+  and event types keep their `data_request` names (`create_data_request`,
+  `data_request_completed`, `data_requests`, `first_data_request_id`,
+  `submission_data_request.*`): users' Zaps store them, and Zapier treats a removed
+  key as a breaking change. New keys come with the API v2 port.
 - `find_submission` treats a 404 on ID lookup as "not found" and returns `[]`
   (Zapier search semantics; enables find-or-create). Unsubscribe likewise
   tolerates an already-deleted webhook (404).
@@ -129,8 +135,8 @@ type → would trip check D024) but remain in the sample so they still map.
   custom_file events.
 - Creates: Batch Generate, Create Folder, Create HTML Template, Add Fields to
   Template, Expire Submission.
-- Searches: Get Combined Submission, Get Submission Batch, Get Data Request.
-- Real `performList` for data-request/batch triggers once a list endpoint exists.
+- Searches: Get Combined Submission, Get Submission Batch, Get Signature Request.
+- Real `performList` for signature request/batch triggers once a list endpoint exists.
 - Recursive expansion of nested object/array-of-object template fields (currently
   a single dict input).
 - CI job (lint + validate + jest) wired via `.circleci/src/`.

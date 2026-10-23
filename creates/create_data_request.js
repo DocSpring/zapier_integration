@@ -12,7 +12,7 @@ const {
   resourceCreateSample,
 } = require('../lib/resources')
 
-// Authentication methods DocSpring supports for a data request. `email_link` is
+// Authentication methods DocSpring supports for a signature request. `email_link` is
 // the default because it lets DocSpring hand back an authenticated signing link
 // (30-day `email` token) that the Zap can send straight to the recipient.
 const AUTH_TYPES = [
@@ -56,7 +56,7 @@ const perform = async (z, bundle) => {
   const rows = (input.data_requests || []).filter((r) => r && r.email)
   if (rows.length === 0) {
     throw new z.errors.Error(
-      'Add at least one recipient email to send a data request to.',
+      'Add at least one recipient email to send a signature request to.',
       'InvalidData'
     )
   }
@@ -67,7 +67,7 @@ const perform = async (z, bundle) => {
     auth_type: r.auth_type || 'email_link',
   }))
 
-  // Data-request submissions do NOT wait for a PDF — they return immediately in
+  // Signature request submissions do NOT wait for a PDF — they return immediately in
   // `waiting_for_data_requests` state and finish only once every recipient has
   // completed their part. So this posts to the standard host (no `?wait=true`,
   // no sync host, unlike Generate PDF). `data` is kept even when empty, so we
@@ -93,7 +93,7 @@ const perform = async (z, bundle) => {
   if (result.status && result.status !== 'success') {
     const errors = (result.errors || []).join(', ') || 'unknown error'
     throw new z.errors.Error(
-      `Could not create data request: ${errors}`,
+      `Could not create signature request: ${errors}`,
       'DocSpringApiError'
     )
   }
@@ -135,7 +135,7 @@ const perform = async (z, bundle) => {
 const dataRequestSample = () => {
   const base = resourceCreateSample('submission')
   const dr = {
-    id: 'drq_000000000000000001',
+    id: 'srq_000000000000000001',
     email: 'jane@example.com',
     name: 'Jane Doe',
     order: 0,
@@ -144,7 +144,7 @@ const dataRequestSample = () => {
     viewed_at: null,
     completed_at: null,
     signing_url:
-      'https://api.docspring.com/data_requests/drq_000000000000000001?token_id=tok_000000000000000001&token_secret=secret',
+      'https://api.docspring.com/data_requests/srq_000000000000000001?token_id=tok_000000000000000001&token_secret=secret',
   }
   return Object.assign({}, base, {
     state: 'waiting_for_data_requests',
@@ -159,11 +159,11 @@ const dataRequestSample = () => {
 
 module.exports = {
   key: 'create_data_request',
-  noun: 'Data Request',
+  noun: 'Signature Request',
   display: {
-    label: 'Create Data Request',
+    label: 'Create Signature Request',
     description:
-      'Create a PDF submission with pending data requests, so one or more people can fill it out or sign it. Returns an authenticated signing link for each recipient.',
+      'Create a PDF submission with pending signature requests, so one or more people can fill it out or sign it. Returns an authenticated signing link for each recipient.',
   },
   operation: {
     // Template dropdown + recipients render immediately; the selected template's
@@ -215,7 +215,7 @@ module.exports = {
     outputFields: resourceCreateFields('submission').concat([
       {
         key: 'first_data_request_id',
-        label: 'First Data Request ID',
+        label: 'First Signature Request ID',
         type: 'string',
       },
       { key: 'first_signing_url', label: 'First Signing URL', type: 'string' },

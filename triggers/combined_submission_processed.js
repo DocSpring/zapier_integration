@@ -13,7 +13,7 @@ module.exports = makeHookTrigger({
   eventType: 'combined_submission.processed',
   resource: 'combined_submission',
   // Template/folder filters can never match these events (only submission,
-  // data-request, template, and folder events are template/folder scopable),
+  // signature request, template, and folder events are template/folder scopable),
   // so only the Mode filter is offered.
   inputFields: scopeFields.modeOnly,
   performList: listCombinedSubmissions('combined_submission.processed'),

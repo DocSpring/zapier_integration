@@ -5,10 +5,10 @@ const { sampleList } = require('../lib/performLists')
 
 module.exports = makeHookTrigger({
   key: 'data_request_completed',
-  noun: 'Data Request',
-  label: 'Data Request Completed',
+  noun: 'Signature Request',
+  label: 'Signature Request Completed',
   description:
-    'Triggers when a data request (e.g. a signing or data-collection request) is completed.',
+    'Triggers when a recipient completes a signature request (signs it, or fills it in when there is nothing to sign).',
   eventType: 'submission_data_request.completed',
   resource: 'data_request',
   performList: sampleList('data_request', 'submission_data_request.completed'),

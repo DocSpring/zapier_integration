@@ -13,7 +13,7 @@ module.exports = makeHookTrigger({
   eventType: 'submission_batch.processed',
   resource: 'submission_batch',
   // Template/folder filters can never match these events (only submission,
-  // data-request, template, and folder events are template/folder scopable),
+  // signature request, template, and folder events are template/folder scopable),
   // so only the Mode filter is offered.
   inputFields: scopeFields.modeOnly,
   performList: sampleList('submission_batch', 'submission_batch.processed'),

@@ -5,9 +5,9 @@ const { sampleList } = require('../lib/performLists')
 
 module.exports = makeHookTrigger({
   key: 'data_request_viewed',
-  noun: 'Data Request',
-  label: 'Data Request Viewed',
-  description: 'Triggers when a recipient first views a data request.',
+  noun: 'Signature Request',
+  label: 'Signature Request Viewed',
+  description: 'Triggers when a recipient first views a signature request.',
   eventType: 'submission_data_request.viewed',
   resource: 'data_request',
   performList: sampleList('data_request', 'submission_data_request.viewed'),
