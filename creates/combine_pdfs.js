@@ -1,51 +1,95 @@
 'use strict'
 
-const { API_PREFIX } = require('../lib/constants')
-const { parseDict } = require('../lib/util')
-const { resolveSyncBaseUrl } = require('../lib/regions')
+const { apiPath } = require('../lib/api')
+const { COMBINED_PDF, createAndWait } = require('../lib/records')
 const {
-  resourceCreateFields,
-  resourceCreateSample,
-} = require('../lib/resources')
+  compact,
+  isBlank,
+  parseJson,
+  text,
+  toBoolean,
+  toInteger,
+} = require('../lib/util')
+const {
+  metadataInput,
+  pdfPassphraseInput,
+  expiresInInput,
+  waitInput,
+} = require('../lib/templates')
+const { shouldWait } = require('../lib/submissionInputs')
+const combinedPdf = require('../lib/resources/combinedPdf')
+
+const SOURCE_TYPES = [
+  { value: 'submission', sample: 'submission', label: 'Submission' },
+  { value: 'combined_pdf', sample: 'combined_pdf', label: 'Combined PDF' },
+  { value: 'template', sample: 'template', label: 'Template' },
+  { value: 'custom_file', sample: 'custom_file', label: 'Custom File' },
+  { value: 'url', sample: 'url', label: 'URL' },
+]
+const ID_TYPES = ['submission', 'combined_pdf', 'template', 'custom_file']
+
+// Each source takes only its type's properties (API v2 rejects any other):
+// `id` for a submission, combined PDF, template or custom file, `url` for a
+// URL, and `template_version` and `processed` only for a template.
+function sourcePdf(z, row, number) {
+  const type = text(row.type) || 'submission'
+  if (type === 'url') {
+    const url = text(row.url)
+    if (!url)
+      throw new z.errors.Error(
+        `Source PDF ${number} needs a URL.`,
+        'InvalidInput',
+        400
+      )
+    return { type, url }
+  }
+  if (!ID_TYPES.includes(type)) {
+    throw new z.errors.Error(
+      `Source PDF ${number} has an unknown type "${type}".`,
+      'InvalidInput',
+      400
+    )
+  }
+  const id = text(row.id)
+  if (!id)
+    throw new z.errors.Error(
+      `Source PDF ${number} needs an ID.`,
+      'InvalidInput',
+      400
+    )
+  if (type !== 'template') return { type, id }
+  return compact({
+    type,
+    id,
+    template_version: text(row.template_version),
+    processed: toBoolean(z, row.processed, `Source PDF ${number} Processed`),
+  })
+}
 
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
-
-  const sourcePdfs = (input.source_pdfs || [])
-    .filter((row) => row && row.id)
-    .map((row) => {
-      const entry = { type: row.type || 'submission', id: row.id }
-      if (row.template_version) entry.template_version = row.template_version
-      return entry
-    })
-
-  const body = {
-    source_pdfs: sourcePdfs,
-    metadata: parseDict(input.metadata),
-    password: input.pdf_passphrase || undefined,
-    expires_in: input.expires_in || undefined,
-  }
-
-  // The sync host waits for processing (like Generate PDF), so this returns
-  // the finished combined PDF. On the standard host the request would return
-  // a still-pending combined submission instead.
-  const response = await z.request({
-    url: `${resolveSyncBaseUrl(bundle)}${API_PREFIX}/combined_submissions`,
-    method: 'POST',
-    params: { wait: true },
-    body,
-    removeMissingValuesFrom: { body: true },
-  })
-
-  const result = response.data || {}
-  if (result.status && result.status !== 'success') {
-    const errors = (result.errors || []).join(', ') || 'unknown error'
+  // Skip wholly blank line items; a row with a type but no ID or URL is an error.
+  const rows = (
+    Array.isArray(input.source_pdfs) ? input.source_pdfs : []
+  ).filter((row) => row && !Object.values(row).every(isBlank))
+  if (rows.length === 0) {
     throw new z.errors.Error(
-      `Combine PDFs failed: ${errors}`,
-      'DocSpringApiError'
+      'Add at least one source PDF.',
+      'InvalidInput',
+      400
     )
   }
-  return result.combined_submission || result
+  return createAndWait(z, bundle, {
+    kind: COMBINED_PDF,
+    path: apiPath('combined_pdfs'),
+    body: compact({
+      source_pdfs: rows.map((row, i) => sourcePdf(z, row, i + 1)),
+      metadata: parseJson(z, input.metadata, 'Metadata'),
+      password: text(input.pdf_passphrase),
+      expires_in: toInteger(z, input.expires_in, 'Expires In'),
+    }),
+    wait: shouldWait(z, input, 'Wait for the PDF?'),
+  })
 }
 
 module.exports = {
@@ -54,7 +98,7 @@ module.exports = {
   display: {
     label: 'Combine PDFs',
     description:
-      'Merge multiple submissions, templates, or files into a single PDF.',
+      'Merges submissions, combined PDFs, templates, custom files and PDFs from URLs into one PDF.',
   },
   operation: {
     inputFields: [
@@ -67,53 +111,58 @@ module.exports = {
             key: 'type',
             label: 'Type',
             type: 'string',
-            default: 'submission',
-            choices: [
-              {
-                value: 'submission',
-                sample: 'submission',
-                label: 'Submission',
-              },
-              { value: 'template', sample: 'template', label: 'Template' },
-              {
-                value: 'custom_file',
-                sample: 'custom_file',
-                label: 'Custom File',
-              },
-            ],
+            required: false,
+            choices: SOURCE_TYPES,
+            helpText: 'What the PDF is. Default: a submission.',
           },
           {
             key: 'id',
             label: 'ID',
             type: 'string',
+            required: false,
             helpText:
-              'The submission (sub_), template (tpl_), or custom file (cfi_) ID.',
+              'The submission (`sub_…`), combined PDF (`com_…`), template (`tpl_…`) or custom file (`cfi_…`) ID.',
+          },
+          {
+            key: 'url',
+            label: 'URL',
+            type: 'string',
+            required: false,
+            helpText: 'For a URL source: the link to download the PDF from.',
           },
           {
             key: 'template_version',
             label: 'Template Version',
             type: 'string',
             required: false,
+            helpText:
+              'For a template source: a published version, `latest` or `draft`. Default: latest.',
+          },
+          {
+            key: 'processed',
+            label: "Template's Processed PDF?",
+            type: 'boolean',
+            required: false,
+            helpText:
+              'For a template source: Yes (the default) uses the PDF that submissions are filled in on; No uses the PDF as it was uploaded.',
           },
         ],
       },
-      { key: 'metadata', label: 'Metadata', dict: true, required: false },
       {
-        key: 'pdf_passphrase',
-        label: 'Encrypt PDF With Passphrase',
-        type: 'string',
-        required: false,
-        helpText: 'Password used to encrypt and open the combined PDF.',
+        ...metadataInput,
+        helpText:
+          'Your own data about the combined PDF, such as an ID from your app.',
       },
+      pdfPassphraseInput,
       {
-        key: 'expires_in',
-        label: 'Expires In (seconds)',
-        type: 'integer',
-        required: false,
+        ...expiresInInput,
+        helpText:
+          'Seconds after the PDF is generated until it expires and is deleted (up to 315360000, 10 years). Leave blank to keep it.',
       },
+      waitInput('PDF'),
     ],
     perform,
-    outputFields: resourceCreateFields('combined_submission'),
-    sample: resourceCreateSample('combined_submission'),
+    outputFields: combinedPdf.outputFields,
+    sample: combinedPdf.sample,
   },
 }

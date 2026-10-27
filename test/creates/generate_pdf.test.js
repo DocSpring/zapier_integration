@@ -1,84 +1,290 @@
 'use strict'
 
 const nock = require('nock')
-const zapier = require('zapier-platform-core')
-const App = require('../../index')
+const {
+  App,
+  appTester,
+  authData,
+  API,
+  SYNC,
+  fakeClock,
+  apiError,
+  errorFrom,
+} = require('../helpers')
 
-const appTester = zapier.createAppTester(App)
-const authData = {
-  region: 'us',
-  token_id: 'api_test_abc',
-  token_secret: 'sekret',
-}
 const op = App.creates.generate_pdf.operation
+const dynamicFields = op.inputFields[op.inputFields.length - 1]
 
-describe('generate_pdf create', () => {
-  afterEach(() => nock.cleanAll())
+const pending = { id: 'sub_1', state: 'pending', files: {} }
+const processed = {
+  id: 'sub_1',
+  state: 'processed',
+  files: {
+    pdf: {
+      state: 'processed',
+      download_url: 'https://downloads.docspring.com/sub_1.pdf',
+    },
+  },
+}
 
-  it('renders dynamic fields from the selected template schema', async () => {
-    nock('https://api.docspring.com')
-      .get('/api/v1/templates/tpl_1/schema')
+describe('generate_pdf', () => {
+  it("shows the template's fields for the chosen version", async () => {
+    const scope = nock(API)
+      .get('/api/v2/templates/tpl_1/schema')
+      .query({ version: '1.2.0' })
       .reply(200, {
         properties: { name: { type: 'string' } },
         required: ['name'],
       })
 
-    // The per-template fields function is the last entry in inputFields.
-    const dynamicFn = op.inputFields[op.inputFields.length - 1]
-    const fields = await appTester(dynamicFn, {
+    const fields = await appTester(dynamicFields, {
       authData,
-      inputData: { template_id: 'tpl_1' },
+      inputData: { template_id: 'tpl_1', version: '1.2.0' },
     })
-    expect(fields.map((f) => f.key)).toContain('data__name')
+    expect(scope.isDone()).toBe(true)
+    expect(fields).toEqual([
+      { key: 'data__name', label: 'Name', type: 'string', required: true },
+    ])
   })
 
-  it('posts assembled data to the SYNC host with wait=true and returns the submission', async () => {
-    let capturedBody
-    let capturedQuery
-    nock('https://sync.api.docspring.com')
-      .post('/api/v1/templates/tpl_1/submissions', (body) => {
-        capturedBody = body
+  it('creates the submission on the sync host with wait=false and version in the query, then waits for it', async () => {
+    fakeClock()
+    let body
+    const scope = nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
         return true
       })
-      .query((q) => {
-        capturedQuery = q
-        return true
-      })
-      .reply(200, {
-        status: 'success',
-        submission: {
-          id: 'sub_1',
-          state: 'processed',
-          download_url: 'https://x/y.pdf',
-        },
-      })
+      .query({ wait: 'false', version: 'draft' })
+      .reply(201, pending)
+    const poll = nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(200, pending)
+      .get('/api/v2/submissions/sub_1')
+      .reply(200, processed)
 
-    const bundle = {
+    const result = await appTester(op.perform, {
       authData,
       inputData: {
         template_id: 'tpl_1',
+        version: 'draft',
         data__name: 'Jane',
         data__email: 'jane@example.com',
+        data__blank: '',
+        test: 'false',
+        editable: 'true',
+        expires_in: '3600',
+        metadata: { user_id: '42' },
+        output_formats: ['pdf', 'png'],
+        pdf_passphrase: 's3cret',
+        field_overrides: '{"name": {"font_size": 9}}',
       },
-    }
-    const result = await appTester(op.perform, bundle)
-
-    expect(result.id).toBe('sub_1')
-    expect(capturedBody.data).toEqual({
-      name: 'Jane',
-      email: 'jane@example.com',
     })
-    expect(capturedQuery.wait).toBe('true')
+
+    expect(scope.isDone()).toBe(true)
+    expect(poll.isDone()).toBe(true)
+    // A flat body with real booleans and integers; `test` is left out when false.
+    expect(body).toEqual({
+      data: { name: 'Jane', email: 'jane@example.com' },
+      metadata: { user_id: '42' },
+      password: 's3cret',
+      expires_in: 3600,
+      editable: true,
+      output_formats: ['pdf', 'png'],
+      field_overrides: { name: { font_size: 9 } },
+    })
+    // The submission as API v2 returns it.
+    expect(result).toEqual(processed)
   })
 
-  it('throws a friendly error when the API returns an error status', async () => {
-    nock('https://sync.api.docspring.com')
-      .post('/api/v1/templates/tpl_1/submissions')
+  it('sends test: true only when the PDF is a test', async () => {
+    let body
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
       .query(true)
-      .reply(200, { status: 'error', errors: ['Data is invalid'] })
+      .reply(201, processed)
+    await appTester(op.perform, {
+      authData,
+      inputData: { template_id: 'tpl_1', test: true },
+    })
+    expect(body).toEqual({ data: {}, test: true })
+  })
 
-    await expect(
+  it('returns the pending submission straight away when waiting is off', async () => {
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query({ wait: 'false' })
+      .reply(201, pending)
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { template_id: 'tpl_1', wait: 'false' },
+    })
+    expect(result).toEqual(pending)
+  })
+
+  it.each([
+    'error',
+    'syntax_error',
+    'image_download_failed',
+    'image_processing_failed',
+  ])(
+    'fails for a submission whose state is %s, naming its error and ID',
+    async (state) => {
+      nock(SYNC)
+        .post('/api/v2/templates/tpl_1/submissions')
+        .query(true)
+        .reply(201, {
+          id: 'sub_1',
+          state,
+          error_message: 'Could not download the image',
+        })
+      const error = await errorFrom(
+        appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+      )
+      expect(error.message).toBe(
+        `The PDF couldn't be generated (state: ${state}): Could not download the image\nSubmission: sub_1`
+      )
+    }
+  )
+
+  it('fails when the polled submission ends in a failure state', async () => {
+    fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(200, { id: 'sub_1', state: 'error', error_message: 'Boom' })
+    const error = await errorFrom(
       appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
-    ).rejects.toThrow(/Data is invalid/)
+    )
+    expect(error.message).toBe(
+      "The PDF couldn't be generated (state: error): Boom\nSubmission: sub_1"
+    )
+  })
+
+  it("stops waiting within Zapier's time limit and says how to get the PDF later", async () => {
+    const clock = fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    nock(API).get('/api/v2/submissions/sub_1').times(20).reply(200, pending)
+
+    const error = await errorFrom(
+      appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+    )
+    expect(error.message).toBe(
+      "The PDF wasn't ready in time. Get it later with Get Submission (sub_1), or use the submission.processed trigger."
+    )
+    // Zapier stops an action after 30 seconds.
+    expect(clock.now).toBeLessThanOrEqual(25000)
+    expect(clock.sleeps.length).toBeGreaterThan(3)
+  })
+
+  it('stops waiting (without creating it again) when a check is rate limited', async () => {
+    fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(429, apiError('rate_limited', 'Too many requests'), {
+        'Retry-After': '10',
+      })
+    const error = await errorFrom(
+      appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+    )
+    expect(error.message).toMatch(
+      /^The PDF wasn't ready in time\. Get it later with Get Submission \(sub_1\)/
+    )
+    expect(error.message).toMatch(
+      /Checking it failed: DocSpring API error 429 rate_limited: Too many requests/
+    )
+  })
+
+  it('waits for page images that are still being made', async () => {
+    fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, {
+        ...processed,
+        files: { ...processed.files, png: { state: 'pending' } },
+      })
+    nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(200, {
+        ...processed,
+        files: { ...processed.files, png: { state: 'processed' } },
+      })
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { template_id: 'tpl_1', output_formats: ['png'] },
+    })
+    expect(result.files.png.state).toBe('processed')
+  })
+
+  it('shows invalid data errors with the recorded submission ID', async () => {
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(
+        422,
+        apiError(
+          'invalid_data',
+          "The data doesn't match the template's fields: /data/last_name is required",
+          {
+            details: [
+              {
+                code: 'required',
+                message: 'is required',
+                pointer: '/data/last_name',
+              },
+            ],
+            submission_id: 'sub_bad',
+          }
+        )
+      )
+    const error = await errorFrom(
+      appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+    )
+    expect(error.message).toBe(
+      [
+        "DocSpring API error 422 invalid_data: The data doesn't match the template's fields: /data/last_name is required",
+        '/data/last_name: is required',
+        'Submission: sub_bad',
+        'Request ID: req_1234567890abcdef01',
+      ].join('\n')
+    )
+  })
+
+  it('rejects inputs that are not the right type before sending anything', async () => {
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: { template_id: 'tpl_1', expires_in: 'tomorrow' },
+      })
+    )
+    expect(error.message).toBe(
+      'Expires In must be a whole number, not "tomorrow".'
+    )
+  })
+
+  it('uses the EU sync host for the EU region', async () => {
+    const scope = nock('https://sync.api-eu.docspring.com')
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, processed)
+    await appTester(op.perform, {
+      authData: { ...authData, region: 'eu' },
+      inputData: { template_id: 'tpl_1' },
+    })
+    expect(scope.isDone()).toBe(true)
   })
 })
