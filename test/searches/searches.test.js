@@ -187,42 +187,51 @@ describe('list_folders', () => {
     expect(result).toEqual([{ id: 'fld_2', name: 'A' }])
   })
 
-  it('finds a folder by name across pages (for Find or Create Folder)', async () => {
-    nock(API)
-      .get('/api/v2/folders')
-      .query({ limit: '100' })
-      .reply(200, {
-        data: [{ id: 'fld_1', name: 'Other' }],
-        next_cursor: 'fld_1',
-      })
-      .get('/api/v2/folders')
-      .query({ limit: '100', cursor: 'fld_1' })
-      .reply(200, {
-        data: [{ id: 'fld_2', name: 'Contracts', parent_folder_id: 'fld_9' }],
-        next_cursor: null,
-      })
-    const result = await appTester(search('list_folders').perform, {
-      authData,
-      inputData: { name: 'contracts' },
-    })
-    expect(result.map((f) => f.id)).toEqual(['fld_2'])
-  })
-
-  it('lists only top-level folders for `root`', async () => {
+  // Find or Create Folder: Create Folder puts a folder with a blank Parent at
+  // the top level, so the search must only find one there too (not a folder
+  // with the same name somewhere else).
+  it('finds a folder by name at the top level when Parent is blank, across pages', async () => {
     nock(API)
       .get('/api/v2/folders')
       .query({ limit: '100' })
       .reply(200, {
         data: [
-          { id: 'fld_1', name: 'Top', parent_folder_id: null },
-          { id: 'fld_2', name: 'Nested', parent_folder_id: 'fld_1' },
+          { id: 'fld_1', name: 'Contracts', parent_folder_id: 'fld_9' },
+          { id: 'fld_3', name: 'Other', parent_folder_id: null },
         ],
+        next_cursor: 'fld_3',
+      })
+      .get('/api/v2/folders')
+      .query({ limit: '100', cursor: 'fld_3' })
+      .reply(200, {
+        data: [{ id: 'fld_2', name: 'Contracts', parent_folder_id: null }],
         next_cursor: null,
       })
     const result = await appTester(search('list_folders').perform, {
       authData,
-      inputData: { parent_folder_id: 'root' },
+      inputData: { name: 'contracts', parent_folder_id: '' },
     })
-    expect(result.map((f) => f.id)).toEqual(['fld_1'])
+    expect(result.map((f) => f.id)).toEqual(['fld_2'])
   })
+
+  it.each([{}, { parent_folder_id: 'root' }])(
+    'lists only top-level folders for %p',
+    async (inputData) => {
+      nock(API)
+        .get('/api/v2/folders')
+        .query({ limit: '100' })
+        .reply(200, {
+          data: [
+            { id: 'fld_1', name: 'Top', parent_folder_id: null },
+            { id: 'fld_2', name: 'Nested', parent_folder_id: 'fld_1' },
+          ],
+          next_cursor: null,
+        })
+      const result = await appTester(search('list_folders').perform, {
+        authData,
+        inputData,
+      })
+      expect(result.map((f) => f.id)).toEqual(['fld_1'])
+    }
+  )
 })

@@ -7,21 +7,26 @@ const { compact, text } = require('../lib/util')
 const { folderInput } = require('../lib/templates')
 const { folder } = require('../lib/resources/other')
 
-// List Folders: the folders in a folder (or every folder), newest first. With
-// a Name, only folders with that name (ignoring case), looking through up to
-// 1,000 folders. Zapier uses the first result, which also makes this the
-// search for "Find or Create Folder".
+// List Folders: the folders in a folder, or at the top level when Parent is
+// blank (or `root`), newest first. With a Name, only folders with that name
+// (ignoring case). Zapier uses the first result, which also makes this the
+// search for "Find or Create Folder": Create Folder puts a folder with a
+// blank Parent at the top level, so a blank Parent searches only there.
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
   const name = text(input.name)
-  const rootOnly = isRoot(input.parent_folder_id)
-  const parent = rootOnly ? undefined : text(input.parent_folder_id)
+  const parent = isRoot(input.parent_folder_id)
+    ? undefined
+    : text(input.parent_folder_id)
+  // The API lists every folder at any depth without a parent, so the top
+  // level is picked out here.
+  const rootOnly = !parent
   const keep = (item) =>
     (!name || String(item.name).toLowerCase() === name.toLowerCase()) &&
     (!rootOnly || !item.parent_folder_id)
 
-  // Without a filter, the first page is the result; with one, look through
-  // up to 1,000 folders.
+  // In a folder without a Name, the first page is the result; otherwise look
+  // through up to 1,000 folders.
   const filtering = !!name || rootOnly
   const matches = []
   let cursor
@@ -44,7 +49,8 @@ module.exports = {
   noun: 'Folder',
   display: {
     label: 'List Folders',
-    description: 'Lists folders, or finds a folder by name.',
+    description:
+      'Lists the folders in a folder or at the top level, or finds a folder by name.',
   },
   operation: {
     inputFields: [
@@ -59,7 +65,7 @@ module.exports = {
       folderInput({
         label: 'Parent Folder',
         helpText:
-          'Only folders in this folder. Enter `root` for the top level; leave blank for folders at any level.',
+          'Only folders in this folder. Leave blank (or enter `root`) for the top level.',
       }),
     ],
     perform,

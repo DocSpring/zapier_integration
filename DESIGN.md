@@ -186,6 +186,14 @@ left to make the next one), the error says the requests exist, names the submiss
 every signature request still without a link, and says to use Create Signing Link rather
 than run the step again.
 
+## Folders
+
+List Folders looks in one folder, or at the top level when Parent is blank or `root`
+(without `parent_folder_id` the API lists folders at every depth, so the top level is
+picked out here, looking through up to 1,000 folders). That's where Create Folder puts
+a folder with a blank Parent, so Find or Create Folder (List Folders + Create Folder)
+finds the folder it would create, not one with the same name in another folder.
+
 ## Dropdowns
 
 `template_choices` and `folder_choices` are hidden polling triggers with `canPaginate`.
