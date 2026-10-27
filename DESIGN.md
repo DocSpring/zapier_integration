@@ -105,7 +105,9 @@ are still running); a template when its `document.state` isn't `pending` or
 - **inputFields**: only the filters API v2 accepts for the event (it rejects a scope list
   that can't apply): submission and signature request events take templates, folders and
   mode; template events templates and folders; folder events folders; combined PDF,
-  batch and custom file events mode.
+  batch and custom file events mode. Only submission, signature request and template
+  events can be filtered by template (the Templates help says so), and subscribe fails
+  before any request if templates are set for another event.
 - **perform** → the version 4 event as delivered, plus `resource_type` (the event name
   before the first dot) and `resource_id` (`data.id`).
 - **performList** → recent records from the matching list (`/submissions`,

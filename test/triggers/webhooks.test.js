@@ -71,6 +71,41 @@ describe('webhook triggers', () => {
     expect(body).not.toHaveProperty('webhook')
   })
 
+  // API v2 can only filter submission, signature request and template events
+  // by template (a 422 when the webhook is created). No other trigger offers
+  // Templates, but a subscription must never send one it can't take.
+  it('says which events the Templates filter applies to', () => {
+    const templates = trigger('submission_processed').inputFields.find(
+      (f) => f.key === 'template_ids'
+    )
+    expect(templates.helpText).toMatch(
+      /submission, signature request and template events/
+    )
+    EVENT_TYPES.forEach((eventType) => {
+      const offered = trigger(eventType.replace('.', '_')).inputFields.some(
+        (f) => f.key === 'template_ids'
+      )
+      expect([eventType, offered]).toEqual([
+        eventType,
+        /^(submission|signature_request|template)\./.test(eventType),
+      ])
+    })
+  })
+
+  it('fails before creating a webhook when templates are set for an event they cannot filter', async () => {
+    const error = await errorFrom(
+      appTester(trigger('combined_pdf_processed').performSubscribe, {
+        authData,
+        targetUrl: 'https://hooks.zapier.com/x',
+        inputData: { template_ids: ['tpl_1'] },
+      })
+    )
+    expect(error.message).toBe(
+      'Templates can only filter submission, signature request and template events, ' +
+        'not combined_pdf.processed. Remove the templates.'
+    )
+  })
+
   it('unsubscribe deletes the webhook by ID', async () => {
     const scope = nock(API)
       .delete('/api/v2/webhooks/whk_1')
