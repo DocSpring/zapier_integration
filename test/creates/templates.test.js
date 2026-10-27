@@ -101,6 +101,63 @@ describe('create_template', () => {
     })
   })
 
+  // Zapier's 30 seconds include the download, so the 25-second wait counts
+  // from the start of the step, not from after the download.
+  it('counts the PDF File download against the wait', async () => {
+    const clock = fakeClock()
+    nock('https://zapier-files.example.com')
+      .get('/hydrated/slow')
+      .reply(() => {
+        clock.now += 20000
+        return [200, Buffer.from('%PDF-1.7 test')]
+      })
+    nock(SYNC)
+      .post('/api/v2/templates')
+      .query(true)
+      .reply(201, { id: 'tpl_1', document: { state: 'pending' } })
+    nock(API)
+      .get('/api/v2/templates/tpl_1')
+      .times(20)
+      .reply(200, { id: 'tpl_1', document: { state: 'pending' } })
+
+    const error = await errorFrom(
+      appTester(create('create_template').perform, {
+        authData,
+        inputData: {
+          name: 'Lease',
+          document_file: 'https://zapier-files.example.com/hydrated/slow',
+        },
+      })
+    )
+    expect(error.message).toBe(
+      "The template's PDF wasn't ready in time. Get the template later with Get Template (tpl_1)."
+    )
+    expect(clock.now).toBeLessThanOrEqual(25000)
+  })
+
+  it('creates nothing when the PDF File took most of the time to download', async () => {
+    const clock = fakeClock()
+    nock('https://zapier-files.example.com')
+      .get('/hydrated/slower')
+      .reply(() => {
+        clock.now += 26000
+        return [200, Buffer.from('%PDF-1.7 test')]
+      })
+    // No DocSpring request is mocked: one would fail with a network error.
+    const error = await errorFrom(
+      appTester(create('create_template').perform, {
+        authData,
+        inputData: {
+          name: 'Lease',
+          document_file: 'https://zapier-files.example.com/hydrated/slower',
+        },
+      })
+    )
+    expect(error.message).toBe(
+      'The PDF File took too long to download, so nothing was created. Run the step again, or use PDF URL.'
+    )
+  })
+
   it('creates an HTML template without waiting for a PDF', async () => {
     const seen = {}
     nock(SYNC)
@@ -201,6 +258,35 @@ describe('replace_template_pdf', () => {
       document_url: 'https://example.com/v2.pdf',
       reimport_fields: true,
     })
+  })
+  it('counts the PDF File download against the wait for a new PDF too', async () => {
+    const clock = fakeClock()
+    nock('https://zapier-files.example.com')
+      .get('/hydrated/slow')
+      .reply(() => {
+        clock.now += 20000
+        return [200, Buffer.from('%PDF-1.7 test')]
+      })
+    nock(SYNC)
+      .put('/api/v2/templates/tpl_1/document')
+      .query(true)
+      .reply(200, { id: 'tpl_1', document: { state: 'pending' } })
+    nock(API)
+      .get('/api/v2/templates/tpl_1')
+      .times(20)
+      .reply(200, { id: 'tpl_1', document: { state: 'pending' } })
+
+    const error = await errorFrom(
+      appTester(create('replace_template_pdf').perform, {
+        authData,
+        inputData: {
+          template_id: 'tpl_1',
+          document_file: 'https://zapier-files.example.com/hydrated/slow',
+        },
+      })
+    )
+    expect(error.message).toMatch(/^The template's PDF wasn't ready in time/)
+    expect(clock.now).toBeLessThanOrEqual(25000)
   })
 })
 

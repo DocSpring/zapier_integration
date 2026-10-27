@@ -2,6 +2,7 @@
 
 const { apiPath } = require('../lib/api')
 const { TEMPLATE, createAndWait } = require('../lib/records')
+const { clock } = require('../lib/wait')
 const { documentInputs, documentSource } = require('../lib/documents')
 const { compact, seg, toBoolean } = require('../lib/util')
 const { templateInput, waitInput } = require('../lib/templates')
@@ -9,6 +10,8 @@ const { shouldWait } = require('../lib/submissionInputs')
 const template = require('../lib/resources/template')
 
 const perform = async (z, bundle) => {
+  // The wait counts from here: Zapier's time limit includes the download.
+  const startedAt = clock.now()
   const input = bundle.inputData || {}
   const document = await documentSource(z, input)
   if (Object.keys(document).length === 0) {
@@ -27,6 +30,7 @@ const perform = async (z, bundle) => {
       reimport_fields: toBoolean(z, input.reimport_fields, 'Reimport Fields?'),
     }),
     wait: shouldWait(z, input, "Wait for the template's PDF?"),
+    startedAt,
   })
 }
 
