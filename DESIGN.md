@@ -76,11 +76,13 @@ Replace Template PDF, Generate Submission Files) send their request to the sync 
 with `wait=false`, which returns the record's ID at once, and then poll the record
 (`GET`) for up to 25 seconds from the start of the perform (its first line, so
 downloading a PDF File counts; if the download alone takes more than 25 seconds,
-nothing is created): checks at about 1, 3, 5, 8,
-11, 15, 20 and 25 seconds. If it still isn't ready, the error names it: "The PDF wasn't
-ready in time. Get it later with Get Submission (<id>), or use the submission.processed
-trigger." A failed check (a 429, a 5xx, a network error) ends the wait with the same
-kind of message, never a retry.
+nothing is created). It waits 1, 2, 4, 8, 8, … seconds between checks (checks at
+about 1, 3, 7, 15 and 23 seconds), and cuts the last wait short to check once more at
+25 seconds. If it still isn't ready, the error names it: "The PDF wasn't ready in time.
+Get it later with Get Submission (<id>), or use the submission.processed trigger." A
+rate-limited check (429) waits for its `Retry-After` when that fits the time left. A
+failed check (a 429 that doesn't fit, a 5xx, a network error) ends the wait with the
+same kind of message, never a retry.
 
 Trade-off: each check counts against the account's API rate limit (a sync request
 counts once), so a PDF that takes a few seconds costs two or three requests instead of

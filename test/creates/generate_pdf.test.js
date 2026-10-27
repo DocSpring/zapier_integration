@@ -186,7 +186,47 @@ describe('generate_pdf', () => {
     expect(clock.sleeps.length).toBeGreaterThan(3)
   })
 
-  it('stops waiting (without creating it again) when a check is rate limited', async () => {
+  it('waits between checks for 1, 2, 4, 8, 8 seconds, then checks once more at 25 seconds', async () => {
+    const clock = fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    const polls = nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .times(6)
+      .reply(200, pending)
+
+    await errorFrom(
+      appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+    )
+    expect(clock.sleeps).toEqual([1000, 2000, 4000, 8000, 8000, 2000])
+    expect(polls.isDone()).toBe(true)
+  })
+
+  it('waits for Retry-After when a check is rate limited and there is time', async () => {
+    const clock = fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(429, apiError('rate_limited', 'Too many requests'), {
+        'Retry-After': '12',
+      })
+      .get('/api/v2/submissions/sub_1')
+      .reply(200, processed)
+
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { template_id: 'tpl_1' },
+    })
+    expect(result).toEqual(processed)
+    expect(clock.sleeps).toEqual([1000, 12000])
+  })
+
+  it('stops waiting (without creating it again) when a check is rate limited for longer than the time left', async () => {
     fakeClock()
     nock(SYNC)
       .post('/api/v2/templates/tpl_1/submissions')
@@ -195,7 +235,7 @@ describe('generate_pdf', () => {
     nock(API)
       .get('/api/v2/submissions/sub_1')
       .reply(429, apiError('rate_limited', 'Too many requests'), {
-        'Retry-After': '10',
+        'Retry-After': '30',
       })
     const error = await errorFrom(
       appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
@@ -205,6 +245,23 @@ describe('generate_pdf', () => {
     )
     expect(error.message).toMatch(
       /Checking it failed: DocSpring API error 429 rate_limited: Too many requests/
+    )
+  })
+
+  it('stops waiting when a rate-limited check gives no Retry-After', async () => {
+    fakeClock()
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .query(true)
+      .reply(201, pending)
+    nock(API)
+      .get('/api/v2/submissions/sub_1')
+      .reply(429, apiError('rate_limited', 'Too many requests'))
+    const error = await errorFrom(
+      appTester(op.perform, { authData, inputData: { template_id: 'tpl_1' } })
+    )
+    expect(error.message).toMatch(
+      /^The PDF wasn't ready in time\. Get it later with Get Submission \(sub_1\)/
     )
   })
 
