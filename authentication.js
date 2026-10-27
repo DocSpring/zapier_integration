@@ -1,14 +1,20 @@
 'use strict'
 
 const { REGION_CHOICES } = require('./lib/regions')
-const { API_PREFIX } = require('./lib/constants')
+const { apiPath } = require('./lib/api')
+const { throwForApiError } = require('./lib/errors')
 
-// Verify the connection. The middleware injects the region host + Basic auth,
-// so this only needs the path. A 200 `{status:'success'}` passes; a 401 is
-// turned into a friendly error by the afterResponse middleware.
-const test = {
-  url: `${API_PREFIX}/authentication`,
-  method: 'GET',
+// Check the connection with GET /api/v2/authentication ({"authenticated":
+// true}). The middleware adds the region host and Basic auth. A self-hosted
+// install without API v2 answers 404, which throwForApiError explains.
+const test = async (z, bundle) => {
+  const response = await z.request({
+    url: apiPath('authentication'),
+    method: 'GET',
+    skipThrowForStatus: true,
+  })
+  throwForApiError(response, z, bundle)
+  return response.data
 }
 
 // Human-readable label for the connected account, derived entirely from the
@@ -56,7 +62,7 @@ module.exports = {
       helpText:
         'Only for the **Self-hosted / Enterprise** region. Just the domain of your DocSpring install, ' +
         'e.g. `docspring.example.com` (or `http://localhost:3000` for a local install). ' +
-        'No path or query string.',
+        'No path or query string. The install needs a release with API v2.',
     },
     {
       key: 'token_id',
