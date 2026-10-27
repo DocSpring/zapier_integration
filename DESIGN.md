@@ -154,8 +154,10 @@ Request leaves out signature and initials fields (only signers fill them in).
 Create Signature Request posts to the standard host (the submission returns straight
 away, waiting for its signers) with `signature_requests`. Each signer is a group of
 inputs (`signer_<n>_…`, up to 10, set by "Number of Signers"): name, email, fields (a
-multi-select of the template's field names from `GET /templates/{id}/fields`; required
-by API v2), role, auth type (`email_link` by default; OAuth needs a provider),
+multi-select of the template's field names from `GET /templates/{id}/fields?version=`,
+with the chosen version or `latest` when it's blank, as the submission uses (the field
+list's own default is the draft); each name once, without static, `combined` and `@@`
+fields; required by API v2), role, auth type (`email_link` by default; OAuth needs a provider),
 prefilled values editable, ignore unknown fields. Line items can't hold a multi-select,
 hence the groups. After creating, it makes a token per signature request
 (`email`: 7 days, by default; `api`: 24 hours; or none) and adds `signing_url` to each,

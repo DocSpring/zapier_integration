@@ -14,6 +14,7 @@ const {
 const {
   dataFromInputs,
   fetchTemplateFields,
+  signerFieldNames,
   jsonSchemaToZapierFields,
   templateDropdown,
   templateVersionInput,
@@ -152,18 +153,17 @@ async function dynamicFields(z, bundle) {
   }
   if (!text(input.template_id)) return signerFields(count, [])
 
+  // The submission uses the latest published version when Template Version is
+  // blank, so the field names must come from it too (the field list's own
+  // default is the draft).
   const [templateFields, schemaResponse] = await Promise.all([
-    fetchTemplateFields(z, bundle),
+    fetchTemplateFields(z, input.template_id, text(input.version) || 'latest'),
     apiRequest(z, {
       url: apiPath('templates', seg(input.template_id), 'schema'),
       params: compact({ version: text(input.version) }),
     }),
   ])
-  const names = []
-  templateFields.forEach((field) => {
-    if (field.static || !field.name || names.includes(field.name)) return
-    names.push(field.name)
-  })
+  const names = signerFieldNames(templateFields)
   const prefill = jsonSchemaToZapierFields(schemaResponse.data, {
     optional: true,
     skipSignatures: true,

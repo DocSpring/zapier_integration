@@ -73,11 +73,13 @@ const updateTemplateFields = {
   },
 }
 
-// The Field IDs input lists the template's fields once a template is chosen.
+// The Field IDs input lists the template's fields once a template is chosen:
+// the draft's, since that's what fields are removed from.
 async function fieldIdChoices(z, bundle) {
-  const fields = await fetchTemplateFields(z, {
-    inputData: { template_id: (bundle.inputData || {}).template_id },
-  })
+  const fields = await fetchTemplateFields(
+    z,
+    (bundle.inputData || {}).template_id
+  )
   const choices = fields.map((field) => ({
     value: String(field.id),
     sample: String(field.id),

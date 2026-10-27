@@ -80,6 +80,38 @@ describe('create_signature_request', () => {
     expect(byKey.data_image__signature).toBeUndefined()
   })
 
+  // A blank Template Version means the latest published version for the
+  // submission (and the schema), but the field list defaults to the draft.
+  it("offers the latest published version's field names when no version is chosen", async () => {
+    const scope = nock(API)
+      .get('/api/v2/templates/tpl_1/fields')
+      .query({ version: 'latest' })
+      .reply(200, {
+        template_id: 'tpl_1',
+        version: '1.0.0',
+        fields: [
+          { id: 1, name: 'signature', static: false, type: 'signature' },
+          { id: 2, name: 'full_name', static: false, type: 'combined' },
+          { id: 3, name: '@@submission_id', static: false, type: 'string' },
+          { id: 4, name: 'date', static: false, type: 'date' },
+          { id: 5, name: 'signature', static: false, type: 'signature' },
+        ],
+      })
+      .get('/api/v2/templates/tpl_1/schema')
+      .reply(200, { properties: {} })
+
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: 'tpl_1', version: '', signer_count: '1' },
+    })
+    expect(scope.isDone()).toBe(true)
+    // Each name once, in the API's order, without fields that take no value.
+    expect(fields.find((f) => f.key === 'signer_1_fields').choices).toEqual([
+      'signature',
+      'date',
+    ])
+  })
+
   it('creates the submission with signature_requests on the standard host, then a signing link for each', async () => {
     let body
     const scope = nock(API)
