@@ -8,6 +8,7 @@ const {
   API,
   SYNC,
   fakeClock,
+  apiError,
   errorFrom,
 } = require('../helpers')
 
@@ -222,6 +223,43 @@ describe('generate_pdf_batch', () => {
         "Some PDFs in the batch couldn't be generated (state: error): 1 of 2 failed.",
         'sub_2: image_download_failed: No image at that URL',
         'Submission batch: sbb_1',
+      ].join('\n')
+    )
+  })
+
+  // A batch records a submission for each item that fails validation, and
+  // each detail names it.
+  it("names each invalid item's recorded submission", async () => {
+    nock(SYNC)
+      .post('/api/v2/submissions/batches')
+      .query(true)
+      .reply(
+        422,
+        apiError('invalid_data', 'Some submissions are invalid', {
+          details: [
+            {
+              code: 'required',
+              message: 'is required',
+              pointer: '/submissions/1/data/last_name',
+              submission_id: 'sub_b',
+            },
+          ],
+        })
+      )
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: {
+          template_id: 'tpl_1',
+          submissions_json: '[{"data": {}}, {"data": {}}]',
+        },
+      })
+    )
+    expect(error.message).toBe(
+      [
+        'DocSpring API error 422 invalid_data: Some submissions are invalid',
+        '/submissions/1/data/last_name: is required (Submission: sub_b)',
+        'Request ID: req_1234567890abcdef01',
       ].join('\n')
     )
   })

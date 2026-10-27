@@ -58,7 +58,8 @@ docspring-zapier/<version>` (so `api_logs.user_agent` counts users by version),
 ## Errors (`lib/errors.js`, `lib/records.js`)
 
 - An HTTP error reads `DocSpring API error <status> <code>: <message>`, then a line per
-  detail (`<pointer or parameter>: <message>`), then `Submission: <id>` (or the batch,
+  detail (`<pointer or parameter>: <message>`, plus `(Submission: <id>)` for a batch
+  item's recorded submission), then `Submission: <id>` (or the batch,
   combined PDF or template ID) when the error names one, then `Request ID: <id>`.
 - A record that ends in a failure state (a 201 with `state: error`,
   `image_download_failed`, …; a template whose `document.state` is an error) is an error
