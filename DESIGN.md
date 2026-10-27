@@ -50,7 +50,9 @@ docspring-zapier/<version>` (so `api_logs.user_agent` counts users by version),
 - Bodies are sent already serialized (`apiRequest`): the platform's own JSON encoding
   deletes every `{{...}}` from top-level string values as unfilled template tags, which
   would strip the Liquid tags from an HTML template's `html`.
-- IDs from inputs are URL-encoded into paths (`seg`).
+- IDs from inputs are URL-encoded into paths (`seg`). A blank ID, `.` or `..` is an
+  error before any request: encoding can't stop a URL from reading `..` as "the folder
+  above".
 - Lists use `limit` and `cursor` and return `{data, next_cursor}`.
 
 ## Errors (`lib/errors.js`, `lib/records.js`)

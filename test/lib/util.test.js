@@ -53,6 +53,7 @@ const {
   splitNames,
   compact,
   isBlank,
+  seg,
 } = require('../../lib/util')
 
 const z = {
@@ -143,4 +144,21 @@ describe('compact and isBlank', () => {
     expect([null, undefined, '', '  ', [], [''], {}].every(isBlank)).toBe(true)
     expect([0, false, 'x', ['x'], { a: 1 }].some(isBlank)).toBe(false)
   })
+})
+
+describe('seg', () => {
+  it('URL-encodes an ID into one path segment', () => {
+    expect(seg(' sub_1 ')).toBe('sub_1')
+    expect(seg('../templates/tpl_1')).toBe('..%2Ftemplates%2Ftpl_1')
+    expect(seg('a?b#c')).toBe('a%3Fb%23c')
+  })
+
+  // A URL treats `.` and `..` as "this folder" and "the folder above", so
+  // encoding can't keep them in their segment.
+  it.each(['.', '..', ' .. ', ''])(
+    'rejects %p before it reaches a URL',
+    (id) => {
+      expect(() => seg(id)).toThrow(/ID/)
+    }
+  )
 })

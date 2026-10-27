@@ -161,3 +161,31 @@ describe('create_signing_link', () => {
     expect(scope.isDone()).toBe(true)
   })
 })
+
+describe('IDs in paths', () => {
+  // `..` would move the request up a level: Expire Submission with the ID
+  // `..` would send DELETE /api/v2/ (and `../templates/tpl_1` is encoded).
+  it.each(['..', '.', ' .. '])(
+    'rejects %p as an ID before sending anything',
+    async (id) => {
+      const error = await errorFrom(
+        appTester(App.creates.expire_submission.operation.perform, {
+          authData,
+          inputData: { submission_id: id },
+        })
+      )
+      expect(error.message).toBe(`"${id.trim()}" isn't a valid ID.`)
+      expect(error.code).toBe('InvalidInput')
+    }
+  )
+
+  it('rejects a blank ID instead of sending a request to the list path', async () => {
+    const error = await errorFrom(
+      appTester(App.searches.get_submission.operation.perform, {
+        authData,
+        inputData: { submission_id: '  ' },
+      })
+    )
+    expect(error.message).toBe('An ID is blank.')
+  })
+})
