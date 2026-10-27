@@ -63,8 +63,12 @@ docspring-zapier/<version>` (so `api_logs.user_agent` counts users by version),
 - A record that ends in a failure state (a 201 with `state: error`,
   `image_download_failed`, …; a template whose `document.state` is an error) is an error
   naming the state, its `error_message` and the record's ID.
-- A 429 is left to the platform, which retries the step after `Retry-After` — except
-  while waiting for a record (below), where a retry would create the record again.
+- A 429 is left to the platform, which retries the step after `Retry-After`, except
+  where a retry would make something twice: while waiting for a record (below) and on
+  Create Signature Request's signing links. Those requests set
+  `throwForThrottlingEarly: false` (the platform's throttling check runs before our
+  `afterResponse`), wait for `Retry-After` when it fits the time left, and otherwise
+  end with an error naming what was made.
 
 ## Waiting for files (`lib/wait.js`, `lib/records.js`)
 
@@ -167,8 +171,12 @@ fields; required by API v2), role, auth type (`email_link` by default; OAuth nee
 prefilled values editable, ignore unknown fields. Line items can't hold a multi-select,
 hence the groups. After creating, it makes a token per signature request
 (`email`: 7 days, by default; `api`: 24 hours; or none) and adds `signing_url` to each,
-plus `first_signature_request_id` and `first_signing_url`. If a token fails, the error
-says the requests exist and to use Create Signing Link rather than run the step again.
+plus `first_signature_request_id` and `first_signing_url`. The tokens share the step's
+25-second budget (from the start of the perform): a rate-limited token request waits for
+`Retry-After` when that fits the time left. If a token still fails (or there's no time
+left to make the next one), the error says the requests exist, names the submission and
+every signature request still without a link, and says to use Create Signing Link rather
+than run the step again.
 
 ## Dropdowns
 

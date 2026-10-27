@@ -8,6 +8,7 @@ const {
   API,
   apiError,
   errorFrom,
+  fakeClock,
 } = require('../helpers')
 
 const op = App.creates.create_signature_request.operation
@@ -241,7 +242,10 @@ describe('create_signature_request', () => {
   it('says the requests exist when a signing link fails, so the step is not run again', async () => {
     nock(API)
       .post('/api/v2/templates/tpl_1/submissions')
-      .reply(201, created)
+      .reply(201, {
+        ...created,
+        signature_requests: [created.signature_requests[0]],
+      })
       .post('/api/v2/signature_requests/srq_1/tokens')
       .reply(500, apiError('internal_error', 'Something went wrong'))
     const error = await errorFrom(
@@ -251,11 +255,137 @@ describe('create_signature_request', () => {
       })
     )
     expect(error.message).toMatch(
-      /^The signature requests were created, but a signing link for srq_1 couldn't be\./
+      /^The signature requests were created, but the signing link for srq_1 couldn't be made\. Make it with Create Signing Link instead of running this step again\./
     )
     expect(error.message).toMatch(
       /DocSpring API error 500 internal_error: Something went wrong/
     )
     expect(error.message).toMatch(/Submission: sub_1/)
+  })
+
+  // Zapier retries a step that ends in its ThrottledError, and this step has
+  // already created the submission: a retry would make a second one.
+  it('waits for Retry-After when a signing link is rate limited and there is time', async () => {
+    const clock = fakeClock()
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .reply(201, created)
+      .post('/api/v2/signature_requests/srq_1/tokens')
+      .reply(201, tokenFor('srq_1'))
+      .post('/api/v2/signature_requests/srq_2/tokens')
+      .reply(429, apiError('rate_limited', 'Too many requests'), {
+        'Retry-After': '12',
+      })
+      .post('/api/v2/signature_requests/srq_2/tokens')
+      .reply(201, tokenFor('srq_2'))
+
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        signer_count: '2',
+        signer_1_fields: ['a'],
+        signer_2_fields: ['b'],
+      },
+    })
+    expect(clock.sleeps).toEqual([12000])
+    expect(result.signature_requests.map((r) => r.signing_url)).toEqual([
+      tokenFor('srq_1').signature_request_url,
+      tokenFor('srq_2').signature_request_url,
+    ])
+  })
+
+  it('says the requests exist, naming every link not made, when a rate limit outlasts the time left', async () => {
+    const clock = fakeClock()
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions')
+      // The time spent creating the submission counts too.
+      .reply(() => {
+        clock.now += 15000
+        return [
+          201,
+          {
+            ...created,
+            signature_requests: [
+              ...created.signature_requests,
+              { id: 'srq_3', state: 'pending', sort_order: 2 },
+            ],
+          },
+        ]
+      })
+      .post('/api/v2/signature_requests/srq_1/tokens')
+      .reply(201, tokenFor('srq_1'))
+      .post('/api/v2/signature_requests/srq_2/tokens')
+      .reply(429, apiError('rate_limited', 'Too many requests'), {
+        'Retry-After': '12',
+      })
+
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: {
+          template_id: 'tpl_1',
+          signer_count: '3',
+          signer_1_fields: ['a'],
+          signer_2_fields: ['b'],
+          signer_3_fields: ['c'],
+        },
+      })
+    )
+    expect(error.code).toBe('SigningLinkFailed')
+    expect(error.message).toBe(
+      [
+        "The signature requests were created, but the signing links for srq_2, srq_3 couldn't be made. " +
+          'Make them with Create Signing Link instead of running this step again.',
+        'DocSpring API error 429 rate_limited: Too many requests',
+        'Request ID: req_1234567890abcdef01',
+        'Submission: sub_1',
+      ].join('\n')
+    )
+    expect(clock.sleeps).toEqual([])
+  })
+
+  it('says the requests exist when a signing link request fails without a response', async () => {
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .reply(201, created)
+      .post('/api/v2/signature_requests/srq_1/tokens')
+      .replyWithError('socket hang up')
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: { template_id: 'tpl_1', signer_1_fields: ['a'] },
+      })
+    )
+    expect(error.message).toMatch(
+      /^The signature requests were created, but the signing links for srq_1, srq_2 couldn't be made\./
+    )
+    expect(error.message).toMatch(/socket hang up/)
+    expect(error.message).toMatch(/Submission: sub_1$/)
+  })
+
+  it('stops before a signing link request that could run past the time limit', async () => {
+    const clock = fakeClock()
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions')
+      .reply(() => {
+        clock.now += 26000
+        return [201, created]
+      })
+    // No token request is mocked: one would fail with a network error.
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: { template_id: 'tpl_1', signer_1_fields: ['a'] },
+      })
+    )
+    expect(error.message).toBe(
+      [
+        "The signature requests were created, but the signing links for srq_1, srq_2 couldn't be made. " +
+          'Make them with Create Signing Link instead of running this step again.',
+        "There wasn't time to make them within Zapier's time limit.",
+        'Submission: sub_1',
+      ].join('\n')
+    )
   })
 })

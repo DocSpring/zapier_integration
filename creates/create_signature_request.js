@@ -22,6 +22,7 @@ const {
   metadataInput,
 } = require('../lib/templates')
 const { testValue } = require('../lib/submissionInputs')
+const { clock, fitsBudget, retryAfterMs } = require('../lib/wait')
 const submission = require('../lib/resources/submission')
 const signatureRequest = require('../lib/resources/signatureRequest')
 
@@ -216,30 +217,71 @@ function signatureRequestsFromInputs(z, input) {
   return requests
 }
 
-// Create a signing link (a token) for each signature request.
-async function withSigningLinks(z, bundle, created, linkType) {
+// The error when the submission and its signature requests exist but some
+// signing links weren't made: running the step again would create them all
+// again, so it says to make the missing links with Create Signing Link.
+function signingLinksFailed(z, created, missing, reason, status) {
+  const ids = missing.map((request) => request.id).join(', ')
+  const one = missing.length === 1
+  return new z.errors.Error(
+    [
+      `The signature requests were created, but the signing ${one ? 'link' : 'links'} for ${ids} couldn't be made. ` +
+        `Make ${one ? 'it' : 'them'} with Create Signing Link instead of running this step again.`,
+      reason,
+      `Submission: ${created.id}`,
+    ].join('\n'),
+    'SigningLinkFailed',
+    status
+  )
+}
+
+// Create a signing link (a token) for each signature request, within the
+// step's time budget (from `startedAt`). A rate-limited request (429) waits
+// for Retry-After when that fits the time left. Any failure is the error
+// above, never the platform's ThrottledError, which makes Zapier retry the
+// step.
+async function withSigningLinks(z, created, linkType, startedAt) {
   const requests = created.signature_requests || []
   const enriched = []
-  for (const request of requests) {
+  for (const [index, request] of requests.entries()) {
     if (linkType === 'none') {
       enriched.push({ ...request, signing_url: null })
       continue
     }
-    const response = await apiRequest(z, {
-      url: apiPath('signature_requests', seg(request.id), 'tokens'),
-      method: 'POST',
-      body: { type: linkType },
-      skipThrowForStatus: true,
-    })
+    const missing = requests.slice(index)
+    let response
+    for (;;) {
+      if (!fitsBudget(startedAt, 0)) {
+        throw signingLinksFailed(
+          z,
+          created,
+          missing,
+          "There wasn't time to make them within Zapier's time limit.",
+          504
+        )
+      }
+      try {
+        response = await apiRequest(z, {
+          url: apiPath('signature_requests', seg(request.id), 'tokens'),
+          method: 'POST',
+          body: { type: linkType },
+          skipThrowForStatus: true,
+          throwForThrottlingEarly: false,
+        })
+      } catch (e) {
+        throw signingLinksFailed(z, created, missing, e.message, 502)
+      }
+      if (response.status !== 429) break
+      const retryAfter = retryAfterMs(response)
+      if (retryAfter === undefined || !fitsBudget(startedAt, retryAfter)) break
+      await clock.sleep(retryAfter)
+    }
     if (response.status >= 400) {
-      throw new z.errors.Error(
-        [
-          `The signature requests were created, but a signing link for ${request.id} couldn't be. ` +
-            'Make one with Create Signing Link instead of running this step again.',
-          formatApiError(response),
-          `Submission: ${created.id}`,
-        ].join('\n'),
-        'SigningLinkFailed',
+      throw signingLinksFailed(
+        z,
+        created,
+        missing,
+        formatApiError(response),
         response.status
       )
     }
@@ -252,6 +294,7 @@ async function withSigningLinks(z, bundle, created, linkType) {
 }
 
 const perform = async (z, bundle) => {
+  const startedAt = clock.now()
   const input = bundle.inputData || {}
   const linkType = text(input.signing_link_type) || 'email'
   if (!LINK_TYPES.some((type) => type.value === linkType)) {
@@ -277,7 +320,7 @@ const perform = async (z, bundle) => {
     body,
   })
   const created = response.data
-  const requests = await withSigningLinks(z, bundle, created, linkType)
+  const requests = await withSigningLinks(z, created, linkType, startedAt)
   const first = requests[0] || {}
   return {
     ...created,
