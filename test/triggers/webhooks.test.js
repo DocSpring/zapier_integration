@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const nock = require('nock')
 const {
   App,
@@ -14,7 +15,7 @@ const { EVENT_TYPES } = require('../../triggers/webhook_events')
 const trigger = (key) => App.triggers[key].operation
 
 describe('webhook triggers', () => {
-  it('subscribe with a flat API v2 webhook body: v2 event name, no version, filters, only the ID kept', async () => {
+  it('subscribe with a flat API v2 webhook body: v2 event name, no version, filters; keeps the ID and signing secret', async () => {
     let body
     nock(API)
       .post('/api/v2/webhooks', (b) => {
@@ -49,8 +50,8 @@ describe('webhook triggers', () => {
       mode: 'live',
       template_ids: ['tpl_1'],
     })
-    // Only the webhook ID is stored at Zapier, not its signing secret.
-    expect(subscribeData).toEqual({ id: 'whk_1' })
+    // The secret verifies each delivery's signature.
+    expect(subscribeData).toEqual({ id: 'whk_1', secret: 'whsec_shh' })
   })
 
   it.each(EVENT_TYPES)('%s subscribes to its own event', async (eventType) => {
@@ -244,6 +245,106 @@ describe('webhook triggers', () => {
       expect(sample.event_type).toBe(eventType)
       expect(sample.resource_type).toBe(eventType.split('.')[0])
       expect(sample.resource_id).toBe(sample.data.id)
+    })
+  })
+
+  describe('signature verification', () => {
+    const SECRET = 'whsec_test_secret'
+    // The raw body as DocSpring sent it: its key order and spacing differ
+    // from what JSON.stringify would make of the parsed object, and it has
+    // non-ASCII text.
+    const RAW = `{"event_type": "submission.processed",
+      "id":"evt_1",  "created_at":"2026-10-27T09:00:05Z",
+      "data": {"state":"processed", "id":"sub_1", "data": {"name": "Zoë Ångström"}}}`
+    const parsed = JSON.parse(RAW)
+    const T = '1782532874'
+    const sign = (body, secret = SECRET, t = T) =>
+      crypto
+        .createHmac('sha256', secret)
+        .update(`${t}.${body}`, 'utf8')
+        .digest('hex')
+    const perform = trigger('submission_processed').perform
+    // Zapier's bundle.rawRequest renames headers: `Http-` + Camel-Case.
+    const deliver = (
+      headers,
+      content = RAW,
+      subscribeData = { id: 'whk_1', secret: SECRET }
+    ) =>
+      appTester(perform, {
+        authData,
+        subscribeData,
+        rawRequest: {
+          method: 'POST',
+          querystring: '',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          content,
+        },
+        cleanedRequest: JSON.parse(content),
+      })
+    const expected = [
+      { ...parsed, resource_type: 'submission', resource_id: 'sub_1' },
+    ]
+
+    // A dropped delivery is logged with z.console (Zapier's monitoring logs).
+    let log
+    beforeEach(() => {
+      log = jest.spyOn(console, 'log').mockImplementation(() => {})
+    })
+
+    it('emits a delivery signed over the exact bytes received', async () => {
+      expect(JSON.stringify(parsed)).not.toBe(RAW)
+      const result = await deliver({
+        'Http-X-Docspring-Signature': `t=${T},v1=${sign(RAW)}`,
+      })
+      expect(result).toEqual(expected)
+    })
+
+    it('reads the header under its own name too, and accepts any matching v1', async () => {
+      const result = await deliver({
+        'X-DocSpring-Signature': `t=${T},v1=${sign(RAW, 'old_secret')},v1=${sign(RAW)}`,
+      })
+      expect(result).toEqual(expected)
+    })
+
+    it.each([
+      [
+        'a signature made with another secret',
+        () => `t=${T},v1=${sign(RAW, 'whsec_other')}`,
+      ],
+      [
+        'a signature over the re-serialised body',
+        () => `t=${T},v1=${sign(JSON.stringify(parsed))}`,
+      ],
+      [
+        'a signature for another timestamp',
+        () => `t=1782532875,v1=${sign(RAW)}`,
+      ],
+      ['no v1', () => `t=${T}`],
+      ['no timestamp', () => `v1=${sign(RAW)}`],
+    ])('drops a delivery with %s', async (_name, header) => {
+      const result = await deliver({ 'Http-X-Docspring-Signature': header() })
+      expect(result).toEqual([])
+    })
+
+    it('drops a delivery without the header, or whose body was changed', async () => {
+      expect(await deliver({})).toEqual([])
+      expect(log).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Dropped a webhook delivery: its X-DocSpring-Signature header is missing or doesn't match its body\./
+        )
+      )
+      const changed = RAW.replace('processed', 'failed')
+      expect(
+        await deliver(
+          { 'Http-X-Docspring-Signature': `t=${T},v1=${sign(RAW)}` },
+          changed
+        )
+      ).toEqual([])
+    })
+
+    it('emits deliveries for a subscription saved without a secret, unverified', async () => {
+      const result = await deliver({}, RAW, { id: 'whk_1' })
+      expect(result).toEqual(expected)
     })
   })
 })

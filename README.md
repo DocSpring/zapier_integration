@@ -43,7 +43,8 @@ ID**, and an **API Token Secret**. The Basic `Authorization` header, the
   `webhook.*`: submission created / processed / failed / declined / updated / expired,
   signature request viewed / completed / declined / updated, combined PDF processed /
   failed / expired, submission batch processed / failed, template created / updated /
-  deleted, custom file created, folder created / updated / deleted. Plus the hidden
+  deleted, custom file created, folder created / updated / deleted. Each delivery's
+  `X-DocSpring-Signature` is verified with the webhook's secret. Plus the hidden
   `template_choices` and `folder_choices` triggers behind the dropdowns.
 - **Creates**: Generate PDF, Generate PDFs in a Batch, Check Data, Generate Submission
   Files, Expire Submission, Combine PDFs, Create Signature Request, Create Signing Link,

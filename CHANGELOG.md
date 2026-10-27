@@ -27,6 +27,9 @@ editor and re-map its fields.
   Templates. New: Find Submissions, Get Submission Batch, Get Combined PDF, Get
   Signature Request, Get Template, List Template Fields, Get Template Page Images, List
   Folders, and Find or Create Folder.
+- **Verified webhooks.** Triggers check each delivery's `X-DocSpring-Signature` with
+  the webhook's signing secret (kept with the subscription) and drop any that don't
+  match.
 - **New triggers:** Submission Declined, Submission Updated, Signature Request Declined,
   Signature Request Updated, Combined PDF Expired, Custom File Created, Folder Created,
   Folder Updated, Folder Deleted.

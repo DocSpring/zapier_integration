@@ -108,8 +108,9 @@ are still running); a template when its `document.state` isn't `pending` or
 - **performSubscribe** → `POST /api/v2/webhooks` with a flat body: `url`,
   `event_types: [<event>]`, `name`, `include_submission_data: true`, and `mode`,
   `template_ids`, `folder_ids` when set. No `version`: webhooks created with API v2 are
-  version 4. It returns only `{id}`, so the webhook's signing secret isn't stored at
-  Zapier.
+  version 4. It returns `{id, secret}`, which Zapier stores as `bundle.subscribeData`:
+  the ID to delete the webhook, the signing secret to verify deliveries. (Zapier's logs
+  scrub keys named `secret`.)
 - **performUnsubscribe** → `DELETE /api/v2/webhooks/{id}`; a 404 counts as done.
 - **inputFields**: only the filters API v2 accepts for the event (it rejects a scope list
   that can't apply): submission and signature request events take templates, folders and
@@ -118,7 +119,18 @@ are still running); a template when its `document.state` isn't `pending` or
   events can be filtered by template (the Templates help says so), and subscribe fails
   before any request if templates are set for another event.
 - **perform** → the version 4 event as delivered, plus `resource_type` (the event name
-  before the first dot) and `resource_id` (`data.id`).
+  before the first dot) and `resource_id` (`data.id`), once its signature checks out
+  (`lib/signatures.js`): `X-DocSpring-Signature` is `t=<seconds>,v1=<hex>`, and a `v1`
+  must equal the HMAC-SHA256 of `"<t>.<raw body>"` with the webhook's secret (constant-
+  time compare, any `v1` may match, no timestamp-age check). The raw body is
+  `bundle.rawRequest.content`, the text as received (a re-serialised `cleanedRequest`
+  would change key order and spacing, and the signature with them), and the event is
+  parsed from it. In `rawRequest` Zapier renames headers other than Content-Type and
+  Content-Length to `Http-` + Camel-Case, so the header arrives as
+  `Http-X-Docspring-Signature`. A delivery that doesn't verify is dropped (`[]`, with a
+  line in Zapier's logs): Zapier answers the sender itself, so it can't respond 401. A
+  subscription saved without a secret has nothing to check against, so its deliveries
+  are emitted unverified.
 - **performList** → recent records from the matching list (`/submissions`,
   `/combined_pdfs`, `/templates`, `/custom_files`, `/folders`), shaped like deliveries.
   Signature requests and batches have no list endpoint, so they show the trigger's
