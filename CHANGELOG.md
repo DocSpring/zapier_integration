@@ -32,6 +32,9 @@ editor and re-map its fields.
   Folder Updated, Folder Deleted.
 - **Generate PDF** takes a template version, PNG page images, field overrides and
   whether to wait; date fields take `YYYY-MM-DD`; image and signature fields take a URL.
+  Generate PDF, Check Data and Create Signature Request also take **Data (JSON)**, so a
+  template ID mapped from an earlier step can still get its data (the template's own
+  fields win over the same names in the JSON).
 - **Create Signature Request** takes each signer's fields from the template's field list
   (required by API v2), their role and how they were authenticated, and returns a
   signing link for each signer: an email link lasts 7 days, a link to open now 24 hours.

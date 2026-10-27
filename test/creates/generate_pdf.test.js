@@ -97,6 +97,67 @@ describe('generate_pdf', () => {
     expect(result).toEqual(processed)
   })
 
+  // A template ID mapped from an earlier step has no fields to show, so its
+  // data comes as JSON. A template field with a value wins over the same key.
+  it('merges Data (JSON) under the template field inputs', async () => {
+    let body
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .query(true)
+      .reply(201, processed)
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        json_data:
+          '{"name": "From JSON", "address": {"city": "Auckland"}, "age": 42}',
+        data__name: 'Jane',
+        data__age: '',
+      },
+    })
+    expect(body.data).toEqual({
+      name: 'Jane',
+      address: { city: 'Auckland' },
+      age: 42,
+    })
+  })
+
+  it.each([
+    ['{"name": ', /^Data \(JSON\) must be valid JSON: /],
+    ['["a"]', /^Data \(JSON\) must be a JSON object/],
+  ])(
+    'rejects Data (JSON) %p before sending anything',
+    async (json, message) => {
+      const error = await errorFrom(
+        appTester(op.perform, {
+          authData,
+          inputData: { template_id: 'tpl_1', json_data: json },
+        })
+      )
+      expect(error.message).toMatch(message)
+    }
+  )
+
+  it('has a Data (JSON) input, and no template fields for a template mapped from an earlier step', async () => {
+    ;['generate_pdf', 'check_data', 'create_signature_request'].forEach(
+      (key) => {
+        const input = App.creates[key].operation.inputFields.find(
+          (f) => f.key === 'json_data'
+        )
+        expect([key, input && input.type]).toEqual([key, 'code'])
+      }
+    )
+    // No request is mocked: one would fail with a network error.
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: '{{123__id}}' },
+    })
+    expect(fields).toEqual([])
+  })
+
   it('sends test: true only when the PDF is a test', async () => {
     let body
     nock(SYNC)

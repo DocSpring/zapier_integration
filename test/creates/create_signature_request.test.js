@@ -113,6 +113,34 @@ describe('create_signature_request', () => {
     ])
   })
 
+  it('shows only the signer inputs for a template mapped from an earlier step, and prefills from Data (JSON)', async () => {
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: '{{123__id}}', signer_count: '1' },
+    })
+    expect(fields.find((f) => f.key === 'signer_1_fields')).not.toHaveProperty(
+      'choices'
+    )
+    expect(fields.some((f) => f.key.startsWith('data'))).toBe(false)
+
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_9/submissions', (b) => {
+        body = b
+        return true
+      })
+      .reply(201, { ...created, signature_requests: [] })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_9',
+        json_data: '{"company": "Acme"}',
+        signer_1_fields: ['signature'],
+      },
+    })
+    expect(body.data).toEqual({ company: 'Acme' })
+  })
+
   it('creates the submission with signature_requests on the standard host, then a signing link for each', async () => {
     let body
     const scope = nock(API)

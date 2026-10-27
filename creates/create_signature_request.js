@@ -13,6 +13,8 @@ const {
 } = require('../lib/util')
 const {
   dataFromInputs,
+  dataJsonInput,
+  isMappedValue,
   fetchTemplateFields,
   signerFieldNames,
   jsonSchemaToZapierFields,
@@ -152,7 +154,9 @@ async function dynamicFields(z, bundle) {
   } catch (_e) {
     // An invalid count is reported by perform; show one signer meanwhile.
   }
-  if (!text(input.template_id)) return signerFields(count, [])
+  if (!text(input.template_id) || isMappedValue(input.template_id)) {
+    return signerFields(count, [])
+  }
 
   // The submission uses the latest published version when Template Version is
   // blank, so the field names must come from it too (the field list's own
@@ -394,6 +398,13 @@ module.exports = {
         altersDynamicFields: true,
         choices: Array.from({ length: MAX_SIGNERS }, (_v, n) => String(n + 1)),
       },
+      dataJsonInput({
+        label: 'Prefill: Data (JSON)',
+        helpText:
+          'Values to prefill as a JSON object, such as `{"company": "Acme"}`. ' +
+          "Use it when the template comes from an earlier step, so its fields aren't listed here. " +
+          'A Prefill field with a value wins over the same name here.',
+      }),
       dynamicFields,
     ],
     perform,

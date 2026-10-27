@@ -4,6 +4,7 @@ const { apiPath } = require('../lib/api')
 const { SUBMISSION, createAndWait } = require('../lib/records')
 const { seg, text } = require('../lib/util')
 const {
+  dataJsonInput,
   templateSchemaFields,
   templateDropdown,
   templateVersionInput,
@@ -55,6 +56,7 @@ module.exports = {
       editableInput,
       fieldOverridesInput,
       waitInput('PDF'),
+      dataJsonInput(),
       templateSchemaFields(),
     ],
     perform,

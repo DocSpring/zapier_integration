@@ -4,6 +4,7 @@ const { apiPath, apiRequest } = require('../lib/api')
 const { compact, parseJson, seg, text } = require('../lib/util')
 const {
   dataFromInputs,
+  dataJsonInput,
   templateSchemaFields,
   templateDropdown,
   templateVersionInput,
@@ -63,6 +64,7 @@ module.exports = {
           'To check signature requests too: a JSON list, such as ' +
           '`[{"name": "Jane Doe", "email": "jane@example.com", "fields": ["signature"], "auth_type": "email_link"}]`.',
       },
+      dataJsonInput(),
       // Every field is optional here, so the check can report missing ones.
       templateSchemaFields({ optional: true }),
     ],

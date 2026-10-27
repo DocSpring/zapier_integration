@@ -159,6 +159,13 @@ named `test` or `metadata` can't collide with a control input, and the prefix sa
 Check Data and Create Signature Request make every field optional; Create Signature
 Request leaves out signature and initials fields (only signers fill them in).
 
+All three also take **Data (JSON)** (`json_data`): the data as one JSON object. A
+template ID mapped from an earlier step is a field reference (`{{123__id}}`) in the Zap
+editor, so no template fields are fetched or shown for it (and no signer field choices),
+and its data goes here. `perform` merges the two: a template field input with a value
+wins over the same top-level key in the JSON. JSON that doesn't parse, or isn't an
+object, is an error before any request.
+
 ## Signature requests
 
 Create Signature Request posts to the standard host (the submission returns straight
