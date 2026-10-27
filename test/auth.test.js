@@ -1,43 +1,71 @@
 'use strict'
 
 const nock = require('nock')
-const zapier = require('zapier-platform-core')
-const App = require('../index')
-
-const appTester = zapier.createAppTester(App)
-const authData = {
-  region: 'us',
-  token_id: 'api_test_abc',
-  token_secret: 'sekret',
-}
+const {
+  App,
+  appTester,
+  authData,
+  API,
+  apiError,
+  errorFrom,
+} = require('./helpers')
 
 describe('authentication', () => {
-  afterEach(() => nock.cleanAll())
-
-  it('tests against the region host with a Basic auth header', async () => {
-    const scope = nock('https://api.docspring.com', {
+  it('tests GET /api/v2/authentication on the region host with Basic auth and our User-Agent', async () => {
+    const scope = nock(API, {
       reqheaders: {
         authorization:
           'Basic ' + Buffer.from('api_test_abc:sekret').toString('base64'),
+        'user-agent': 'docspring-zapier/2.0.0',
       },
     })
-      .get('/api/v1/authentication')
-      .reply(200, { status: 'success' })
+      .get('/api/v2/authentication')
+      .reply(200, { authenticated: true })
 
-    // nock only matches when the region host + exact Basic auth header line up,
-    // so scope.isDone() is the real assertion here.
     const body = await appTester(App.authentication.test, { authData })
     expect(scope.isDone()).toBe(true)
-    expect(body.status).toBe('success')
+    expect(body).toEqual({ authenticated: true })
   })
 
-  it('surfaces a 401 as a friendly error', async () => {
-    nock('https://api.docspring.com')
-      .get('/api/v1/authentication')
-      .reply(401, {})
-    await expect(
+  it("shows API v2's error message for a 401", async () => {
+    nock(API)
+      .get('/api/v2/authentication')
+      .reply(401, apiError('unauthorized', 'Invalid API token'))
+    const error = await errorFrom(
       appTester(App.authentication.test, { authData })
-    ).rejects.toThrow(/Invalid DocSpring API token/)
+    )
+    expect(error.message).toBe(
+      'DocSpring API error 401 unauthorized: Invalid API token\nRequest ID: req_1234567890abcdef01'
+    )
+    expect(error.status).toBe(401)
+  })
+
+  it("explains a self-hosted server that doesn't have API v2 yet", async () => {
+    nock('https://docspring.example.com')
+      .get('/api/v2/authentication')
+      .reply(404, '<h1>Not Found</h1>')
+    const error = await errorFrom(
+      appTester(App.authentication.test, {
+        authData: {
+          ...authData,
+          region: 'self_hosted',
+          custom_host: 'docspring.example.com',
+        },
+      })
+    )
+    expect(error.message).toBe(
+      "This DocSpring server doesn't have API v2 yet. Upgrade it to the latest release, or use version 1.1.0 of this integration."
+    )
+  })
+
+  it('uses the EU host for the EU region', async () => {
+    const scope = nock('https://api-eu.docspring.com')
+      .get('/api/v2/authentication')
+      .reply(200, { authenticated: true })
+    await appTester(App.authentication.test, {
+      authData: { ...authData, region: 'eu' },
+    })
+    expect(scope.isDone()).toBe(true)
   })
 
   it('derives a Test/Live connection label from the token id and region', () => {

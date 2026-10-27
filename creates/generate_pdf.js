@@ -1,79 +1,66 @@
 'use strict'
 
-const { API_PREFIX, DATA_FIELD_PREFIX } = require('../lib/constants')
-const { parseDict, unprefix } = require('../lib/util')
-const { resolveSyncBaseUrl } = require('../lib/regions')
+const { apiPath } = require('../lib/api')
+const { SUBMISSION, createAndWait } = require('../lib/records')
+const { seg, text } = require('../lib/util')
 const {
-  templateDropdown,
-  controlFields,
+  dataJsonInput,
   templateSchemaFields,
+  templateDropdown,
+  templateVersionInput,
+  testInput,
+  metadataInput,
+  pdfPassphraseInput,
+  expiresInInput,
+  waitInput,
 } = require('../lib/templates')
 const {
-  resourceCreateFields,
-  resourceCreateSample,
-} = require('../lib/resources')
+  outputFormatsInput,
+  editableInput,
+  fieldOverridesInput,
+  submissionBody,
+  shouldWait,
+} = require('../lib/submissionInputs')
+const submission = require('../lib/resources/submission')
 
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
-
-  // Reassemble the `data` object from the namespaced template-field inputs.
-  const data = {}
-  Object.keys(input).forEach((key) => {
-    if (!key.startsWith(DATA_FIELD_PREFIX)) return
-    const value = input[key]
-    if (value !== undefined && value !== null && value !== '') {
-      data[unprefix(key)] = value
-    }
+  return createAndWait(z, bundle, {
+    kind: SUBMISSION,
+    path: apiPath('templates', seg(input.template_id), 'submissions'),
+    params: { version: text(input.version) },
+    body: submissionBody(z, input),
+    wait: shouldWait(z, input, 'Wait for the PDF?'),
   })
-
-  const body = {
-    data,
-    test: input.test,
-    metadata: parseDict(input.metadata),
-    password: input.pdf_passphrase || undefined,
-    editable: input.editable,
-    expires_in: input.expires_in || undefined,
-    version: input.version || undefined,
-  }
-
-  // Synchronous generation goes to the sync host so the finished PDF returns
-  // well within Zapier's perform timeout. This is an absolute URL, so the
-  // middleware leaves it unprefixed (but still attaches auth).
-  const url = `${resolveSyncBaseUrl(bundle)}${API_PREFIX}/templates/${input.template_id}/submissions`
-
-  const response = await z.request({
-    url,
-    method: 'POST',
-    params: { wait: true },
-    body,
-    removeMissingValuesFrom: { body: true },
-  })
-
-  const result = response.data || {}
-  if (result.status && result.status !== 'success') {
-    const errors = (result.errors || []).join(', ') || 'unknown error'
-    throw new z.errors.Error(
-      `PDF generation failed: ${errors}`,
-      'DocSpringApiError'
-    )
-  }
-  return result.submission || result
 }
 
 module.exports = {
   key: 'generate_pdf',
-  noun: 'PDF Submission',
+  noun: 'PDF',
   display: {
     label: 'Generate PDF',
     description:
-      'Fill out a template and generate a PDF. Pick a template to reveal its fields.',
+      'Fills in a template and generates a PDF. Choose a template to see its fields.',
   },
   operation: {
-    // Static fields render immediately; templateSchemaFields appends the
-    // selected template's own fields (refreshed via altersDynamicFields).
-    inputFields: [templateDropdown, ...controlFields, templateSchemaFields],
+    // The static inputs show straight away; the template's own fields are
+    // added after them when a template (and version) is chosen.
+    inputFields: [
+      templateDropdown,
+      templateVersionInput,
+      testInput,
+      metadataInput,
+      outputFormatsInput,
+      pdfPassphraseInput,
+      expiresInInput,
+      editableInput,
+      fieldOverridesInput,
+      waitInput('PDF'),
+      dataJsonInput(),
+      templateSchemaFields(),
+    ],
     perform,
-    outputFields: resourceCreateFields('submission'),
-    sample: resourceCreateSample('submission'),
+    outputFields: submission.outputFields,
+    sample: submission.sample,
   },
 }

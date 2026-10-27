@@ -5,4 +5,6 @@
 module.exports = {
   testEnvironment: 'node',
   testMatch: ['**/test/**/*.test.js'],
+  // Blocks real network requests: every test mocks HTTP with nock.
+  setupFilesAfterEnv: ['<rootDir>/test/setup.js'],
 }
