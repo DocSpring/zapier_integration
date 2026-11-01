@@ -22,6 +22,11 @@ API v2 refuses `send_email`, so every Create Signature Request would fail.
   signature request email settings.
 - **Check Data** leaves out blank values in its JSON signature requests (such as an
   empty mapped email), which API v2 refuses.
+- **Word templates:** Output Formats on Generate PDF and Generate PDFs in a Batch offers a
+  Word template's Word document (`docx`) and OpenDocument file (`odt`), and Generate
+  Submission Files can add them, or a PDF, to a Word template's processed submission. The
+  output has their files (`files.docx`, `files.odt`). Leaving Output Formats empty makes
+  what the template makes, not always the PDF, as its help now says.
 - The samples' template document and page image links use DocSpring's real routes.
 
 ## 2.0.0

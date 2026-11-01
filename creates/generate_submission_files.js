@@ -24,7 +24,7 @@ module.exports = {
   display: {
     label: 'Generate Submission Files',
     description:
-      'Makes more files for a processed submission, such as a PNG image of each page of its PDF.',
+      "Makes more files for a processed submission: a PNG image of each page of its PDF, or a Word template submission's PDF, Word document or OpenDocument file.",
   },
   operation: {
     inputFields: [
@@ -44,9 +44,25 @@ module.exports = {
         default: 'png',
         choices: [
           { value: 'png', sample: 'png', label: 'PNG images of each page' },
+          {
+            value: 'pdf',
+            sample: 'pdf',
+            label: 'PDF (Word templates that made only a Word document)',
+          },
+          {
+            value: 'docx',
+            sample: 'docx',
+            label: 'Word document (Word templates)',
+          },
+          {
+            value: 'odt',
+            sample: 'odt',
+            label: 'OpenDocument file (Word templates)',
+          },
         ],
         helpText:
-          'The files to add. A format the submission already has is left as it is.',
+          'The files to add. `pdf`, `docx` and `odt` are for the submissions of Word templates. ' +
+          'A format the submission already has is left as it is.',
       },
       waitInput('files'),
     ],

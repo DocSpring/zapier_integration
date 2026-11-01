@@ -184,6 +184,32 @@ describe('generate_submission_files', () => {
     expect(result.files.png).toEqual({ state: 'processed', page_count: 2 })
   })
 
+  it("offers a Word template submission's PDF, Word document and OpenDocument file, and asks for them", async () => {
+    const formats = op.inputFields.find((f) => f.key === 'formats')
+    expect(formats.choices.map((c) => c.value)).toEqual([
+      'png',
+      'pdf',
+      'docx',
+      'odt',
+    ])
+    expect(formats.default).toBe('png')
+    nock(SYNC)
+      .post('/api/v2/submissions/sub_1/generate_files', {
+        formats: ['docx', 'odt'],
+      })
+      .query({ wait: 'false' })
+      .reply(200, {
+        id: 'sub_1',
+        state: 'processed',
+        files: { docx: { state: 'processed' }, odt: { state: 'processed' } },
+      })
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { submission_id: 'sub_1', formats: ['docx', 'odt'] },
+    })
+    expect(result.files.odt).toEqual({ state: 'processed' })
+  })
+
   it("fails when the files couldn't be made", async () => {
     nock(SYNC)
       .post('/api/v2/submissions/sub_1/generate_files')
