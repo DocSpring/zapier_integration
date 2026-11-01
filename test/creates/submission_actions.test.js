@@ -83,7 +83,9 @@ describe('check_data', () => {
 
     expect(bodies[0]).toEqual({
       data: {},
-      signature_requests: [{ email: 'jane@example.com', fields: ['signature'] }],
+      signature_requests: [
+        { email: 'jane@example.com', fields: ['signature'], auth_type: 'email_link' },
+      ],
       send_email: true,
       signing_order: 'sequential',
       email_subject: 'Please sign',
@@ -92,7 +94,9 @@ describe('check_data', () => {
     })
     expect(bodies[1]).toEqual({
       data: {},
-      signature_requests: [{ email: 'jane@example.com', fields: ['signature'] }],
+      signature_requests: [
+        { email: 'jane@example.com', fields: ['signature'], auth_type: 'email_link' },
+      ],
       send_email: false,
       signing_order: 'sequential',
     })
@@ -119,6 +123,48 @@ describe('check_data', () => {
     })
     expect(body.signature_requests).toEqual([
       { fields: ['signature'], auth_type: 'password', role: 'Signer 1' },
+    ])
+  })
+
+  it('treats an empty list as no signature requests, so no email settings are sent', async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        signing_order: 'parallel',
+        signature_requests: '[]',
+      },
+    })
+    expect(body).toEqual({ data: {} })
+  })
+
+  it("defaults each signature request's authentication to an email link, as Create Signature Request does", async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'self',
+        signature_requests:
+          '[{"name": "Jane Doe", "fields": ["signature"]}, {"fields": ["initials"], "auth_type": "password"}]',
+      },
+    })
+    expect(body.signature_requests).toEqual([
+      { name: 'Jane Doe', fields: ['signature'], auth_type: 'email_link' },
+      { fields: ['initials'], auth_type: 'password' },
     ])
   })
 

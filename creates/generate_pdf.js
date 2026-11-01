@@ -51,7 +51,12 @@ module.exports = {
       testInput,
       metadataInput,
       outputFormatsInput,
-      pdfPassphraseInput,
+      {
+        ...pdfPassphraseInput,
+        helpText:
+          pdfPassphraseInput.helpText +
+          " A submission with a passphrase can't make a Word document or OpenDocument file.",
+      },
       expiresInInput,
       editableInput,
       fieldOverridesInput,

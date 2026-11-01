@@ -41,6 +41,15 @@ function withoutBlankText(request) {
   return out
 }
 
+function withDefaultAuthType(request) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    return request
+  }
+  return request.auth_type === undefined
+    ? { ...request, auth_type: 'email_link' }
+    : request
+}
+
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
   const parsed = parseJson(
@@ -49,7 +58,13 @@ const perform = async (z, bundle) => {
     'Signature Requests',
     'array'
   )
-  const signatureRequests = parsed && parsed.map(withoutBlankText)
+  // An empty list is no signature requests: the email settings go only with
+  // signers. Each one's authentication defaults to an email link, as in
+  // Create Signature Request.
+  const signatureRequests =
+    parsed && parsed.length > 0
+      ? parsed.map(withoutBlankText).map(withDefaultAuthType)
+      : undefined
   const response = await apiRequest(z, {
     url: apiPath(
       'templates',
@@ -103,7 +118,7 @@ module.exports = {
         required: false,
         helpText:
           'To check signature requests too: a JSON list, such as ' +
-          '`[{"name": "Jane Doe", "email": "jane@example.com", "fields": ["signature"]}]`. ' +
+          '`[{"name": "Jane Doe", "email": "jane@example.com", "fields": ["signature"], "auth_type": "email_link"}]`. ' +
           'Emails to Signers, Signing Order and the email options apply only with signature requests.',
       },
       sendEmailInput,

@@ -2,8 +2,9 @@
 
 ## 2.1.0
 
-Needs the DocSpring release in which DocSpring emails signers (sc-2878); until it's live,
-API v2 refuses `send_email`, so every Create Signature Request would fail.
+Needs a DocSpring release that emails signers: older releases refuse `send_email`, so
+Create Signature Request, and Check Data with signature requests, would fail on them.
+Self-hosted (Enterprise) installs need that release too; until then, keep using 2.0.0.
 
 - **Emails to Signers** on Create Signature Request: DocSpring emails each signer a link
   to sign (the default, as in the API), with any reminders and the signed PDF once
@@ -14,7 +15,9 @@ API v2 refuses `send_email`, so every Create Signature Request would fail.
   same link types and every authentication type.
 - **Signing Order** (everyone at once, or one step at a time) and each signer's
   **Signing Step**, either way.
-- **Check Data** checks the same settings with its signature requests.
+- **Check Data** checks the same settings with its signature requests, and defaults each
+  one's authentication to an email link, as Create Signature Request does. An empty list
+  counts as no signature requests.
 - **New triggers:** Signature Request Sent (DocSpring first emailed someone their link)
   and Signature Request Email Bounced.
 - **Outputs:** a signature request's `send_email`, `signing_step`, `sent_at` and
