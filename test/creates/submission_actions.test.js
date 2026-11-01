@@ -100,6 +100,28 @@ describe('check_data', () => {
     expect(bodies[2]).toEqual({ data: {} })
   })
 
+  it('leaves out blank values in the signature requests, which the API refuses', async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'self',
+        signature_requests:
+          '[{"fields": ["signature"], "auth_type": "password", "email": "", "name": "  ", "role": "Signer 1"}]',
+      },
+    })
+    expect(body.signature_requests).toEqual([
+      { fields: ['signature'], auth_type: 'password', role: 'Signer 1' },
+    ])
+  })
+
   it('shows every template field as optional, so missing ones are reported, not blocked', async () => {
     nock(API)
       .get('/api/v2/templates/tpl_1/schema')

@@ -26,14 +26,30 @@ const {
 // step (a Filter or Paths) can act on it. With signature requests, it also
 // checks the email settings Create Signature Request would send; without
 // them, the API refuses those settings, so they're left out.
+// A blank value in a signature request (`"email": ""` from an empty mapped
+// field) is left out: API v2 refuses blank text.
+function withoutBlankText(request) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    return request
+  }
+  const out = {}
+  Object.keys(request).forEach((key) => {
+    const value = request[key]
+    if (typeof value === 'string' && value.trim() === '') return
+    out[key] = value
+  })
+  return out
+}
+
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
-  const signatureRequests = parseJson(
+  const parsed = parseJson(
     z,
     input.signature_requests,
     'Signature Requests',
     'array'
   )
+  const signatureRequests = parsed && parsed.map(withoutBlankText)
   const response = await apiRequest(z, {
     url: apiPath(
       'templates',
