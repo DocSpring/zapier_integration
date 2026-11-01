@@ -41,7 +41,8 @@ ID**, and an **API Token Secret**. The Basic `Authorization` header, the
 
 - **Triggers** (REST hooks, one version 4 webhook each): every webhook event except
   `webhook.*`: submission created / processed / failed / declined / updated / expired,
-  signature request viewed / completed / declined / updated, combined PDF processed /
+  signature request viewed / completed / declined / updated / sent / email bounced,
+  combined PDF processed /
   failed / expired, submission batch processed / failed, template created / updated /
   deleted, custom file created, folder created / updated / deleted. Each delivery's
   `X-DocSpring-Signature` is verified with the webhook's secret. Plus the hidden

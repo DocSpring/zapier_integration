@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.1.0
+
+Needs the DocSpring release in which DocSpring emails signers (sc-2878); until it's live,
+API v2 refuses `send_email`, so every Create Signature Request would fail.
+
+- **Emails to Signers** on Create Signature Request: DocSpring emails each signer a link
+  to sign (the default, as in the API), with any reminders and the signed PDF once
+  everyone has signed; or you send the links yourself. With DocSpring's emails you can set
+  the subject, a message, CC addresses, reminders, the reply-to address, notification
+  emails and a notification each time someone signs, and the step makes no signing links,
+  so a Zap can't send a second one. Sending the links yourself works as before, with the
+  same link types and every authentication type.
+- **Signing Order** (everyone at once, or one step at a time) and each signer's
+  **Signing Step**, either way.
+- **Check Data** checks the same settings with its signature requests.
+- **New triggers:** Signature Request Sent (DocSpring first emailed someone their link)
+  and Signature Request Email Bounced.
+- **Outputs:** a signature request's `send_email`, `signing_step`, `sent_at` and
+  `email_status`, a submission's `signing_order`, and a template's output format and
+  signature request email settings.
+
 ## 2.0.0
 
 A new major version on [DocSpring API v2](https://docspring.com/docs/api-guide/migrating-to-api-v2/).

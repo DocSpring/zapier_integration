@@ -80,6 +80,20 @@ const EVENTS = [
     lists.sampleList('signature_request'),
   ],
   [
+    'signature_request.sent',
+    'Signature Request Sent',
+    'Triggers when DocSpring first emails someone their signing link.',
+    scopeFields.standard,
+    lists.sampleList('signature_request'),
+  ],
+  [
+    'signature_request.email_bounced',
+    'Signature Request Email Bounced',
+    "Triggers when DocSpring's email with someone's signing link bounces or is marked as spam.",
+    scopeFields.standard,
+    lists.sampleList('signature_request'),
+  ],
+  [
     'combined_pdf.processed',
     'Combined PDF Processed',
     'Triggers when a combined PDF has been generated and is ready to download.',

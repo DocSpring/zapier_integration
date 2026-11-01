@@ -44,7 +44,60 @@ describe('check_data', () => {
     expect(body).toEqual({
       data: { first_name: 'Jane' },
       signature_requests: [{ fields: ['signature'], auth_type: 'email_link' }],
+      send_email: true,
     })
+  })
+
+  it("checks the email settings Create Signature Request sends, only with signature requests", async () => {
+    const bodies = []
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        bodies.push(b)
+        return true
+      })
+      .times(3)
+      .reply(200, { valid: true })
+    const settings = {
+      template_id: 'tpl_1',
+      signing_order: 'sequential',
+      email_subject: 'Please sign',
+      cc: ['records@example.com'],
+      reminder_interval_days: '3',
+      reminder_max_count: '2',
+    }
+    const signers = '[{"email": "jane@example.com", "fields": ["signature"]}]'
+
+    await appTester(op.perform, {
+      authData,
+      inputData: { ...settings, signature_requests: signers },
+    })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        ...settings,
+        send_email: 'self',
+        signature_requests: signers,
+      },
+    })
+    await appTester(op.perform, { authData, inputData: settings })
+
+    expect(bodies[0]).toEqual({
+      data: {},
+      signature_requests: [{ email: 'jane@example.com', fields: ['signature'] }],
+      send_email: true,
+      signing_order: 'sequential',
+      email_subject: 'Please sign',
+      cc: ['records@example.com'],
+      reminders: { interval_days: 3, max_count: 2 },
+    })
+    expect(bodies[1]).toEqual({
+      data: {},
+      signature_requests: [{ email: 'jane@example.com', fields: ['signature'] }],
+      send_email: false,
+      signing_order: 'sequential',
+    })
+    // The API refuses email settings without signature requests.
+    expect(bodies[2]).toEqual({ data: {} })
   })
 
   it('shows every template field as optional, so missing ones are reported, not blocked', async () => {
@@ -59,10 +112,23 @@ describe('check_data', () => {
       authData,
       inputData: { template_id: 'tpl_1' },
     })
-    expect(fields[0]).toMatchObject({
-      key: 'data__first_name',
+    expect(fields.find((f) => f.key === 'data__first_name')).toMatchObject({
       required: false,
     })
+    // With DocSpring's emails (the default), its email options come first.
+    expect(fields[0].key).toBe('email_subject')
+  })
+
+  it("hides DocSpring's email options when you send the links", async () => {
+    nock(API)
+      .get('/api/v2/templates/tpl_1/schema')
+      .reply(200, { properties: { first_name: { type: 'string' } } })
+    const dynamicFields = op.inputFields[op.inputFields.length - 1]
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: 'tpl_1', send_email: 'self' },
+    })
+    expect(fields.map((f) => f.key)).toEqual(['data__first_name'])
   })
 })
 
