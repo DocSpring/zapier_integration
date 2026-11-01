@@ -69,7 +69,7 @@ module.exports = {
               download_url:
                 'https://downloads.docspring.com/store/sub_1234567890abcdef01_page_1.png?Expires=1761555600&Signature=...',
               permanent_url:
-                'https://app.docspring.com/submissions/sub_1234567890abcdef01/files/png/1',
+                'https://app.docspring.com/submissions/sub_1234567890abcdef01/files/png/pages/1',
               filename: 'sub_1234567890abcdef01_page_1.png',
               content_type: 'image/png',
               size: 120394,

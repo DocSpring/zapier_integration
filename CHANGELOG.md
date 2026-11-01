@@ -20,6 +20,7 @@ API v2 refuses `send_email`, so every Create Signature Request would fail.
 - **Outputs:** a signature request's `send_email`, `signing_step`, `sent_at` and
   `email_status`, a submission's `signing_order`, and a template's output format and
   signature request email settings.
+- The samples' template document and page image links use DocSpring's real routes.
 
 ## 2.0.0
 
