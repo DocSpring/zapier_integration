@@ -43,7 +43,9 @@ const addTemplateFields = {
       templateInput,
       fieldsJsonInput(
         'A JSON list of fields, such as `[{"name": "first_name", "type": "string", "page": 1, "x": 72, "y": 100, ' +
-          '"width": 200, "height": 20}]`. Settings left out have their defaults.'
+          '"width": 200, "height": 20}]`. Settings left out have their defaults. A field with the name of one of the ' +
+          "template's fields shares its settings (`type`, `required`, `default` and others): leave them out or give " +
+          'the same values, and change them for every field with the name with Update Template Fields.'
       ),
     ],
     perform: sendFields('POST'),
