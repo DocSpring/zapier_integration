@@ -39,7 +39,7 @@ describe('addBaseUrlAndAuth', () => {
   it('sends Basic auth and the docspring-zapier User-Agent to DocSpring', () => {
     const req = addBaseUrlAndAuth({ url: '/api/v2/authentication' }, z, bundle)
     expect(req.headers.Authorization).toBe(BASIC)
-    expect(req.headers['User-Agent']).toBe('docspring-zapier/2.0.0')
+    expect(req.headers['User-Agent']).toBe('docspring-zapier/2.1.0')
   })
 
   it('never sends the DocSpring credentials to another host', () => {
@@ -74,7 +74,7 @@ describe('addBaseUrlAndAuth', () => {
     )
     expect(req.headers).toEqual({
       Authorization: BASIC,
-      'User-Agent': 'docspring-zapier/2.0.0',
+      'User-Agent': 'docspring-zapier/2.1.0',
       Accept: 'application/json',
       'Content-Type': 'application/json',
     })

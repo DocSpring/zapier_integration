@@ -44,7 +44,128 @@ describe('check_data', () => {
     expect(body).toEqual({
       data: { first_name: 'Jane' },
       signature_requests: [{ fields: ['signature'], auth_type: 'email_link' }],
+      send_email: true,
     })
+  })
+
+  it("checks the email settings Create Signature Request sends, only with signature requests", async () => {
+    const bodies = []
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        bodies.push(b)
+        return true
+      })
+      .times(3)
+      .reply(200, { valid: true })
+    const settings = {
+      template_id: 'tpl_1',
+      signing_order: 'sequential',
+      email_subject: 'Please sign',
+      cc: ['records@example.com'],
+      reminder_interval_days: '3',
+      reminder_max_count: '2',
+    }
+    const signers = '[{"email": "jane@example.com", "fields": ["signature"]}]'
+
+    await appTester(op.perform, {
+      authData,
+      inputData: { ...settings, signature_requests: signers },
+    })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        ...settings,
+        send_email: 'self',
+        signature_requests: signers,
+      },
+    })
+    await appTester(op.perform, { authData, inputData: settings })
+
+    expect(bodies[0]).toEqual({
+      data: {},
+      signature_requests: [
+        { email: 'jane@example.com', fields: ['signature'], auth_type: 'email_link' },
+      ],
+      send_email: true,
+      signing_order: 'sequential',
+      email_subject: 'Please sign',
+      cc: ['records@example.com'],
+      reminders: { interval_days: 3, max_count: 2 },
+    })
+    expect(bodies[1]).toEqual({
+      data: {},
+      signature_requests: [
+        { email: 'jane@example.com', fields: ['signature'], auth_type: 'email_link' },
+      ],
+      send_email: false,
+      signing_order: 'sequential',
+    })
+    // The API refuses email settings without signature requests.
+    expect(bodies[2]).toEqual({ data: {} })
+  })
+
+  it('leaves out blank values in the signature requests, which the API refuses', async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'self',
+        signature_requests:
+          '[{"fields": ["signature"], "auth_type": "password", "email": "", "name": "  ", "role": "Signer 1"}]',
+      },
+    })
+    expect(body.signature_requests).toEqual([
+      { fields: ['signature'], auth_type: 'password', role: 'Signer 1' },
+    ])
+  })
+
+  it('treats an empty list as no signature requests, so no email settings are sent', async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        signing_order: 'parallel',
+        signature_requests: '[]',
+      },
+    })
+    expect(body).toEqual({ data: {} })
+  })
+
+  it("defaults each signature request's authentication to an email link, as Create Signature Request does", async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions/validate', (b) => {
+        body = b
+        return true
+      })
+      .reply(200, { valid: true })
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'self',
+        signature_requests:
+          '[{"name": "Jane Doe", "fields": ["signature"]}, {"fields": ["initials"], "auth_type": "password"}]',
+      },
+    })
+    expect(body.signature_requests).toEqual([
+      { name: 'Jane Doe', fields: ['signature'], auth_type: 'email_link' },
+      { fields: ['initials'], auth_type: 'password' },
+    ])
   })
 
   it('shows every template field as optional, so missing ones are reported, not blocked', async () => {
@@ -59,10 +180,23 @@ describe('check_data', () => {
       authData,
       inputData: { template_id: 'tpl_1' },
     })
-    expect(fields[0]).toMatchObject({
-      key: 'data__first_name',
+    expect(fields.find((f) => f.key === 'data__first_name')).toMatchObject({
       required: false,
     })
+    // With DocSpring's emails (the default), its email options come first.
+    expect(fields[0].key).toBe('email_subject')
+  })
+
+  it("hides DocSpring's email options when you send the links", async () => {
+    nock(API)
+      .get('/api/v2/templates/tpl_1/schema')
+      .reply(200, { properties: { first_name: { type: 'string' } } })
+    const dynamicFields = op.inputFields[op.inputFields.length - 1]
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: 'tpl_1', send_email: 'self' },
+    })
+    expect(fields.map((f) => f.key)).toEqual(['data__first_name'])
   })
 })
 
@@ -94,6 +228,32 @@ describe('generate_submission_files', () => {
       inputData: { submission_id: 'sub_1', formats: ['png'] },
     })
     expect(result.files.png).toEqual({ state: 'processed', page_count: 2 })
+  })
+
+  it("offers a Word template submission's PDF, Word document and OpenDocument file, and asks for them", async () => {
+    const formats = op.inputFields.find((f) => f.key === 'formats')
+    expect(formats.choices.map((c) => c.value)).toEqual([
+      'png',
+      'pdf',
+      'docx',
+      'odt',
+    ])
+    expect(formats.default).toBe('png')
+    nock(SYNC)
+      .post('/api/v2/submissions/sub_1/generate_files', {
+        formats: ['docx', 'odt'],
+      })
+      .query({ wait: 'false' })
+      .reply(200, {
+        id: 'sub_1',
+        state: 'processed',
+        files: { docx: { state: 'processed' }, odt: { state: 'processed' } },
+      })
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { submission_id: 'sub_1', formats: ['docx', 'odt'] },
+    })
+    expect(result.files.odt).toEqual({ state: 'processed' })
   })
 
   it("fails when the files couldn't be made", async () => {

@@ -22,9 +22,9 @@ function sourceFiles(dir) {
 
 // Pins the app-level settings and operation set (sc-5981 spec).
 describe('app definition', () => {
-  it('is version 2.0.0', () => {
-    expect(pkg.version).toBe('2.0.0')
-    expect(App.version).toBe('2.0.0')
+  it('is version 2.1.0', () => {
+    expect(pkg.version).toBe('2.1.0')
+    expect(App.version).toBe('2.1.0')
   })
 
   it('never calls API v1', () => {
@@ -97,6 +97,8 @@ describe('app definition', () => {
         'signature_request.completed',
         'signature_request.declined',
         'signature_request.updated',
+        'signature_request.sent',
+        'signature_request.email_bounced',
         'combined_pdf.processed',
         'combined_pdf.failed',
         'combined_pdf.expired',

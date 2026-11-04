@@ -348,6 +348,44 @@ describe('generate_pdf', () => {
     expect(result.files.png.state).toBe('processed')
   })
 
+  it("asks a Word template for its Word document and OpenDocument file, and lists them in the output", async () => {
+    for (const create of [App.creates.generate_pdf, App.creates.generate_pdf_batch]) {
+      const input = create.operation.inputFields.find(
+        (f) => f.key === 'output_formats'
+      )
+      expect(input.choices.map((c) => c.value)).toEqual([
+        'pdf',
+        'docx',
+        'odt',
+        'png',
+      ])
+    }
+    let body
+    nock(SYNC)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .query(true)
+      .reply(201, {
+        id: 'sub_1',
+        state: 'processed',
+        files: { docx: { state: 'processed' }, odt: { state: 'processed' } },
+      })
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: { template_id: 'tpl_1', output_formats: ['docx', 'odt'] },
+    })
+    expect(body.output_formats).toEqual(['docx', 'odt'])
+    expect(result.files.docx.state).toBe('processed')
+    const keys = op.outputFields.map((f) => f.key)
+    for (const format of ['docx', 'odt']) {
+      expect(keys).toContain(`files__${format}__download_url`)
+      expect(keys).toContain(`files__${format}__permanent_url`)
+      expect(keys).toContain(`files__${format}__state`)
+    }
+  })
+
   it('shows invalid data errors with the recorded submission ID', async () => {
     nock(SYNC)
       .post('/api/v2/templates/tpl_1/submissions')

@@ -12,13 +12,59 @@ const {
 } = require('../lib/templates')
 const { testValue } = require('../lib/submissionInputs')
 const { submissionValidation } = require('../lib/resources/other')
+const {
+  emailMode,
+  emailOptionFields,
+  emailSettings,
+  sendEmailInput,
+  signingOrderInput,
+} = require('../lib/signerEmails')
 
 // Checks data against a template without creating a submission, generating
 // anything or using credits. A mismatch isn't an error here: the result says
 // `valid: false` and has the error that creating it would return, so a later
-// step (a Filter or Paths) can act on it.
+// step (a Filter or Paths) can act on it. With signature requests, it also
+// checks the email settings Create Signature Request would send; without
+// them, the API refuses those settings, so they're left out.
+// A blank value in a signature request (`"email": ""` from an empty mapped
+// field) is left out: API v2 refuses blank text.
+function withoutBlankText(request) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    return request
+  }
+  const out = {}
+  Object.keys(request).forEach((key) => {
+    const value = request[key]
+    if (typeof value === 'string' && value.trim() === '') return
+    out[key] = value
+  })
+  return out
+}
+
+function withDefaultAuthType(request) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    return request
+  }
+  return request.auth_type === undefined
+    ? { ...request, auth_type: 'email_link' }
+    : request
+}
+
 const perform = async (z, bundle) => {
   const input = bundle.inputData || {}
+  const parsed = parseJson(
+    z,
+    input.signature_requests,
+    'Signature Requests',
+    'array'
+  )
+  // An empty list is no signature requests: the email settings go only with
+  // signers. Each one's authentication defaults to an email link, as in
+  // Create Signature Request.
+  const signatureRequests =
+    parsed && parsed.length > 0
+      ? parsed.map(withoutBlankText).map(withDefaultAuthType)
+      : undefined
   const response = await apiRequest(z, {
     url: apiPath(
       'templates',
@@ -31,15 +77,25 @@ const perform = async (z, bundle) => {
     body: compact({
       data: dataFromInputs(z, input),
       test: testValue(z, input.test),
-      signature_requests: parseJson(
-        z,
-        input.signature_requests,
-        'Signature Requests',
-        'array'
-      ),
+      signature_requests: signatureRequests,
+      ...(signatureRequests ? emailSettings(z, input) : {}),
     }),
   })
   return response.data
+}
+
+// DocSpring's email options when it emails the signers, then the template's
+// fields.
+async function dynamicFields(z, bundle) {
+  const input = bundle.inputData || {}
+  let mode = 'docspring'
+  try {
+    mode = emailMode(z, input)
+  } catch (_e) {
+    // An invalid choice is reported by perform; show DocSpring's options meanwhile.
+  }
+  const fields = await templateSchemaFields({ optional: true })(z, bundle)
+  return (mode === 'docspring' ? emailOptionFields : []).concat(fields)
 }
 
 module.exports = {
@@ -62,11 +118,14 @@ module.exports = {
         required: false,
         helpText:
           'To check signature requests too: a JSON list, such as ' +
-          '`[{"name": "Jane Doe", "email": "jane@example.com", "fields": ["signature"], "auth_type": "email_link"}]`.',
+          '`[{"name": "Jane Doe", "email": "jane@example.com", "fields": ["signature"], "auth_type": "email_link"}]`. ' +
+          'Emails to Signers, Signing Order and the email options apply only with signature requests.',
       },
+      sendEmailInput,
+      signingOrderInput,
       dataJsonInput(),
       // Every field is optional here, so the check can report missing ones.
-      templateSchemaFields({ optional: true }),
+      dynamicFields,
     ],
     perform,
     outputFields: submissionValidation.outputFields,

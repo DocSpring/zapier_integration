@@ -19,6 +19,8 @@ describe('trigger filters match what each webhook event can be scoped by', () =>
     'signature_request_completed',
     'signature_request_declined',
     'signature_request_updated',
+    'signature_request_sent',
+    'signature_request_email_bounced',
   ])('%s offers template, folder and mode filters', (key) => {
     expect(inputKeys(key)).toEqual(['template_ids', 'folder_ids', 'mode'])
   })

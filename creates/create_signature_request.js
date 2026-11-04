@@ -27,11 +27,19 @@ const { testValue } = require('../lib/submissionInputs')
 const { clock, fitsBudget, retryAfterMs } = require('../lib/wait')
 const submission = require('../lib/resources/submission')
 const signatureRequest = require('../lib/resources/signatureRequest')
+const {
+  emailMode,
+  emailOptionFields,
+  emailSettings,
+  sendEmailInput,
+  signingOrderInput,
+} = require('../lib/signerEmails')
 
 const MAX_SIGNERS = 10
 
 // How your app authenticated the signer before showing them the signature
-// request. `email_link` (DocSpring's emailed link) is the default.
+// request. `email_link` is the default, and the only one when DocSpring
+// emails the signer.
 const AUTH_TYPES = [
   { value: 'email_link', sample: 'email_link', label: 'Email link' },
   { value: 'password', sample: 'password', label: 'Password' },
@@ -81,6 +89,7 @@ function signerFields(count, fieldChoices) {
         label: `Signer ${i}: Email`,
         type: 'string',
         required: false,
+        helpText: 'Required when DocSpring emails the signers.',
       },
       {
         key: `${p}fields`,
@@ -113,7 +122,9 @@ function signerFields(count, fieldChoices) {
         default: 'email_link',
         choices: AUTH_TYPES,
         helpText:
-          'How your app checked who the person is before showing them the signature request.',
+          'How the person is identified before they see the form. Choose Email link when they get their link by ' +
+          "email, from DocSpring or from you: DocSpring's emails always use it. The other types are for people you " +
+          'send the link to yourself or who sign in your app.',
       },
       {
         key: `${p}auth_provider`,
@@ -122,6 +133,16 @@ function signerFields(count, fieldChoices) {
         required: false,
         helpText:
           'For OAuth: the service that signed them in, such as `google`.',
+      },
+      {
+        key: `${p}signing_step`,
+        label: `Signer ${i}: Signing Step`,
+        type: 'integer',
+        required: false,
+        helpText:
+          'With Signing Order One step at a time: when this person signs. Everyone in step 1 signs first, then ' +
+          'step 2, and so on, and people in the same step sign in any order. Give every signer a step, or none to ' +
+          'have them sign in the order of the signers.',
       },
       {
         key: `${p}prefilled_values_editable`,
@@ -144,8 +165,33 @@ function signerFields(count, fieldChoices) {
   return fields
 }
 
-// Dynamic inputs: each signer's inputs, then the template's fields to prefill
-// (all optional, without signature and initials fields: only signers sign).
+const signingLinkTypeInput = {
+  key: 'signing_link_type',
+  label: 'Signing Link',
+  type: 'string',
+  required: false,
+  default: 'email',
+  choices: LINK_TYPES,
+  helpText:
+    'A link for each signer to open their signature request, for a later step to send. ' +
+    'An email link opens it for 7 days; a link to open now, for 24 hours.',
+}
+
+// The inputs that go with Emails to Signers: DocSpring's email options, or the
+// signing link type when you send the links.
+function emailModeFields(z, input) {
+  let mode = 'docspring'
+  try {
+    mode = emailMode(z, input)
+  } catch (_e) {
+    // An invalid choice is reported by perform; show DocSpring's options meanwhile.
+  }
+  return mode === 'self' ? [signingLinkTypeInput] : emailOptionFields
+}
+
+// Dynamic inputs: the email options or link type, each signer's inputs, then
+// the template's fields to prefill (all optional, without signature and
+// initials fields: only signers sign).
 async function dynamicFields(z, bundle) {
   const input = bundle.inputData || {}
   let count = 1
@@ -154,8 +200,9 @@ async function dynamicFields(z, bundle) {
   } catch (_e) {
     // An invalid count is reported by perform; show one signer meanwhile.
   }
+  const modeFields = emailModeFields(z, input)
   if (!text(input.template_id) || isMappedValue(input.template_id)) {
-    return signerFields(count, [])
+    return modeFields.concat(signerFields(count, []))
   }
 
   // The submission uses the latest published version when Template Version is
@@ -173,7 +220,7 @@ async function dynamicFields(z, bundle) {
     optional: true,
     skipSignatures: true,
   }).map((field) => ({ ...field, label: `Prefill: ${field.label}` }))
-  return signerFields(count, names).concat(prefill)
+  return modeFields.concat(signerFields(count, names), prefill)
 }
 
 function signatureRequestsFromInputs(z, input) {
@@ -203,6 +250,11 @@ function signatureRequestsFromInputs(z, input) {
         email: text(input[`${p}email`]),
         role: text(input[`${p}role`]),
         fields,
+        signing_step: toInteger(
+          z,
+          input[`${p}signing_step`],
+          `Signer ${i}: Signing Step`
+        ),
         auth_type: authType,
         auth_provider: authProvider,
         prefilled_values_editable: toBoolean(
@@ -240,10 +292,12 @@ function signingLinksFailed(z, created, missing, reason, status) {
 }
 
 // Create a signing link (a token) for each signature request, within the
-// step's time budget (from `startedAt`). A rate-limited request (429) waits
-// for Retry-After when that fits the time left. Any failure is the error
-// above, never the platform's ThrottledError, which makes Zapier retry the
-// step.
+// step's time budget (from `startedAt`), when you send the links. DocSpring's
+// emails have their own links, so a link here would send the signer a second
+// one: with DocSpring's emails, or a link type of none, each `signing_url` is
+// null. A rate-limited request (429) waits for Retry-After when that fits the
+// time left. Any failure is the error above, never the platform's
+// ThrottledError, which makes Zapier retry the step.
 async function withSigningLinks(z, created, linkType, startedAt) {
   const requests = created.signature_requests || []
   const enriched = []
@@ -300,7 +354,10 @@ async function withSigningLinks(z, created, linkType, startedAt) {
 const perform = async (z, bundle) => {
   const startedAt = clock.now()
   const input = bundle.inputData || {}
-  const linkType = text(input.signing_link_type) || 'email'
+  const settings = emailSettings(z, input)
+  const linkType = settings.send_email
+    ? 'none'
+    : text(input.signing_link_type) || 'email'
   if (!LINK_TYPES.some((type) => type.value === linkType)) {
     throw new z.errors.Error(
       `Signing Link must be email, api or none, not "${linkType}".`,
@@ -313,6 +370,7 @@ const perform = async (z, bundle) => {
     test: testValue(z, input.test),
     metadata: parseJson(z, input.metadata, 'Metadata'),
     signature_requests: signatureRequestsFromInputs(z, input),
+    ...settings,
   })
 
   // A submission with signature requests returns straight away, waiting for
@@ -337,6 +395,8 @@ const perform = async (z, bundle) => {
 const SIGNING_URL =
   'https://app.docspring.com/signature_requests/srq_1234567890abcdef01?token_id=tok_1234567890abcdef01&token_secret=abcdef1234567890'
 
+// A request whose links you send yourself, so the signing link fields have a
+// value to map. With DocSpring's emails, each `signing_url` is null.
 const sample = {
   ...submission.sample,
   state: 'waiting_for_signature_requests',
@@ -352,6 +412,9 @@ const sample = {
       completed_at: null,
       ip_address: null,
       user_agent: null,
+      send_email: false,
+      sent_at: null,
+      email_status: null,
       signing_url: SIGNING_URL,
     },
   ],
@@ -365,7 +428,7 @@ module.exports = {
   display: {
     label: 'Create Signature Request',
     description:
-      'Asks one or more people to fill in and sign a template. Returns a signing link for each of them.',
+      'Asks one or more people to fill in and sign a template. DocSpring emails each of them a link to sign, or returns a signing link for each of them to send yourself.',
   },
   operation: {
     inputFields: [
@@ -378,17 +441,8 @@ module.exports = {
           'Test PDFs are free and have a watermark. A test API token always makes test PDFs.',
       },
       metadataInput,
-      {
-        key: 'signing_link_type',
-        label: 'Signing Link',
-        type: 'string',
-        required: false,
-        default: 'email',
-        choices: LINK_TYPES,
-        helpText:
-          'A link for each signer to open their signature request, for a later step to send. ' +
-          'An email link opens it for 7 days; a link to open now, for 24 hours.',
-      },
+      sendEmailInput,
+      signingOrderInput,
       {
         key: 'signer_count',
         label: 'Number of Signers',
@@ -433,6 +487,26 @@ module.exports = {
       {
         key: 'signature_requests[]state',
         label: 'Signature Request States',
+        type: 'string',
+      },
+      {
+        key: 'signature_requests[]send_email',
+        label: 'Signature Requests Emailed by DocSpring',
+        type: 'boolean',
+      },
+      {
+        key: 'signature_requests[]signing_step',
+        label: 'Signature Request Signing Steps',
+        type: 'integer',
+      },
+      {
+        key: 'signature_requests[]sent_at',
+        label: 'Signature Request Emails Sent At',
+        type: 'datetime',
+      },
+      {
+        key: 'signature_requests[]email_status',
+        label: 'Signature Request Email Statuses',
         type: 'string',
       },
       {

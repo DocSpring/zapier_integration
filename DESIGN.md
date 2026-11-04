@@ -188,10 +188,23 @@ multi-select of the template's field names from `GET /templates/{id}/fields?vers
 with the chosen version or `latest` when it's blank, as the submission uses (the field
 list's own default is the draft); each name once, without static, `combined` and `@@`
 fields; required by API v2), role, auth type (`email_link` by default; OAuth needs a provider),
-prefilled values editable, ignore unknown fields. Line items can't hold a multi-select,
-hence the groups. After creating, it makes a token per signature request
-(`email`: 7 days, by default; `api`: 24 hours; or none) and adds `signing_url` to each,
-plus `first_signature_request_id` and `first_signing_url`. The tokens share the step's
+signing step, prefilled values editable, ignore unknown fields. Line items can't hold a
+multi-select, hence the groups.
+
+"Emails to Signers" (`send_email`: `docspring`, the default as in the API, or `self`) is
+always sent as `send_email: true` or `false`, with "Signing Order" when set. With
+DocSpring's emails, the dynamic inputs are its email options (subject, message, CC,
+reminders, reply-to, notification emails, notify when signed), sent only when they have a
+value: the API refuses blank ones, and refuses them all when it emails nobody. The step
+then makes no tokens and each `signing_url` is null, since a link here would let a Zap send
+each signer a second email. It's one choice for every signer: the API's per-signer
+`send_email` isn't offered (a mix would need links for only some of them). Check Data
+offers the same inputs and sends them only with its signature requests (the API refuses
+them without). `lib/signerEmails.js` holds them for both.
+
+With "I send the links", the dynamic input is the link type: the step makes a token per
+signature request (`email`: 7 days, by default; `api`: 24 hours; or none) and adds
+`signing_url` to each, plus `first_signature_request_id` and `first_signing_url`. The tokens share the step's
 25-second budget (from the start of the perform): a rate-limited token request waits for
 `Retry-After` when that fits the time left. If a token still fails (or there's no time
 left to make the next one), the error says the requests exist, names the submission and

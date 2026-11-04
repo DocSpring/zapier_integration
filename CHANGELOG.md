@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.1.0
+
+Needs a DocSpring release that emails signers: older releases refuse `send_email`, so
+Create Signature Request, and Check Data with signature requests, would fail on them.
+Self-hosted (Enterprise) installs need that release too; until then, keep using 2.0.0.
+
+- **Emails to Signers** on Create Signature Request: DocSpring emails each signer a link
+  to sign (the default, as in the API), with any reminders and the signed PDF once
+  everyone has signed; or you send the links yourself. With DocSpring's emails you can set
+  the subject, a message, CC addresses, reminders, the reply-to address, notification
+  emails and a notification each time someone signs, and the step makes no signing links,
+  so a Zap can't send a second one. Sending the links yourself works as before, with the
+  same link types and every authentication type.
+- **Signing Order** (everyone at once, or one step at a time) and each signer's
+  **Signing Step**, either way.
+- **Check Data** checks the same settings with its signature requests, and defaults each
+  one's authentication to an email link, as Create Signature Request does. An empty list
+  counts as no signature requests.
+- **New triggers:** Signature Request Sent (DocSpring first emailed someone their link)
+  and Signature Request Email Bounced.
+- **Outputs:** a signature request's `send_email`, `signing_step`, `sent_at` and
+  `email_status`, a submission's `signing_order`, and a template's output format and
+  signature request email settings.
+- **Check Data** leaves out blank values in its JSON signature requests (such as an
+  empty mapped email), which API v2 refuses.
+- **Word templates:** Output Formats on Generate PDF and Generate PDFs in a Batch offers a
+  Word template's Word document (`docx`) and OpenDocument file (`odt`), and Generate
+  Submission Files can add them, or a PDF, to a Word template's processed submission. The
+  output has their files (`files.docx`, `files.odt`). Leaving Output Formats empty makes
+  what the template makes, not always the PDF, as its help now says.
+- The samples' template document and page image links use DocSpring's real routes.
+
 ## 2.0.0
 
 A new major version on [DocSpring API v2](https://docspring.com/docs/api-guide/migrating-to-api-v2/).

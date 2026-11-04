@@ -141,7 +141,7 @@ describe('create_signature_request', () => {
     expect(body.data).toEqual({ company: 'Acme' })
   })
 
-  it('creates the submission with signature_requests on the standard host, then a signing link for each', async () => {
+  it('creates the submission with signature_requests on the standard host and, when you send the links, a signing link for each', async () => {
     let body
     const scope = nock(API)
       .post('/api/v2/templates/tpl_1/submissions', (b) => {
@@ -159,6 +159,7 @@ describe('create_signature_request', () => {
       authData,
       inputData: {
         template_id: 'tpl_1',
+        send_email: 'self',
         version: 'draft',
         test: 'true',
         data__company: 'Acme',
@@ -179,6 +180,7 @@ describe('create_signature_request', () => {
     expect(body).toEqual({
       data: { company: 'Acme' },
       test: true,
+      send_email: false,
       signature_requests: [
         {
           name: 'Jane Doe',
@@ -208,6 +210,189 @@ describe('create_signature_request', () => {
     ])
   })
 
+  it('lets DocSpring email the signers by default, and makes no signing links', async () => {
+    let body
+    const scope = nock(API)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .reply(201, {
+        ...created,
+        signature_requests: created.signature_requests.map((r) => ({
+          ...r,
+          send_email: true,
+        })),
+      })
+
+    const result = await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        // A link type left over from I send the links is ignored.
+        signing_link_type: 'api',
+        signer_count: '2',
+        signer_1_email: 'jane@example.com',
+        signer_1_fields: ['signature'],
+        signer_2_email: 'john@example.com',
+        signer_2_fields: ['initials'],
+      },
+    })
+
+    // nock fails any request it wasn't given, such as a token.
+    expect(scope.isDone()).toBe(true)
+    expect(body.send_email).toBe(true)
+    expect(body.signature_requests.map((r) => r.auth_type)).toEqual([
+      'email_link',
+      'email_link',
+    ])
+    expect(result.signature_requests.map((r) => r.signing_url)).toEqual([
+      null,
+      null,
+    ])
+    expect(result.first_signature_request_id).toBe('srq_1')
+    expect(result.first_signing_url).toBeNull()
+  })
+
+  it("sends DocSpring's email options, the signing order and each signer's step, leaving out empty ones", async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .reply(201, created)
+
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'docspring',
+        signing_order: 'sequential',
+        email_subject: ' Please sign {{ document.name }} ',
+        email_message: 'Sign by Friday.',
+        cc: ['records@example.com, legal@example.com'],
+        reminder_interval_days: '3',
+        reminder_max_count: 2,
+        reply_to: '',
+        notification_emails: [],
+        notify_when_signed: 'true',
+        signer_count: '2',
+        signer_1_email: 'jane@example.com',
+        signer_1_fields: ['signature'],
+        signer_1_signing_step: '1',
+        signer_2_email: 'john@example.com',
+        signer_2_fields: ['initials'],
+        signer_2_signing_step: 2,
+      },
+    })
+
+    expect(body).toEqual({
+      data: {},
+      send_email: true,
+      signing_order: 'sequential',
+      email_subject: 'Please sign {{ document.name }}',
+      email_message: 'Sign by Friday.',
+      cc: ['records@example.com', 'legal@example.com'],
+      reminders: { interval_days: 3, max_count: 2 },
+      notify_when_signed: true,
+      signature_requests: [
+        {
+          email: 'jane@example.com',
+          fields: ['signature'],
+          signing_step: 1,
+          auth_type: 'email_link',
+        },
+        {
+          email: 'john@example.com',
+          fields: ['initials'],
+          signing_step: 2,
+          auth_type: 'email_link',
+        },
+      ],
+    })
+  })
+
+  it("leaves out DocSpring's email options when you send the links, which the API refuses then", async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .reply(201, { ...created, signature_requests: [] })
+
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        send_email: 'self',
+        signing_order: 'sequential',
+        email_subject: 'Left over',
+        cc: ['records@example.com'],
+        reminder_interval_days: '3',
+        notify_when_signed: 'true',
+        signer_1_fields: ['signature'],
+        signer_1_auth_type: 'password',
+      },
+    })
+
+    expect(body).toEqual({
+      data: {},
+      send_email: false,
+      signing_order: 'sequential',
+      signature_requests: [{ fields: ['signature'], auth_type: 'password' }],
+    })
+  })
+
+  it('refuses an unknown Emails to Signers value before sending anything', async () => {
+    const error = await errorFrom(
+      appTester(op.perform, {
+        authData,
+        inputData: {
+          template_id: 'tpl_1',
+          send_email: 'yes',
+          signer_1_fields: ['a'],
+        },
+      })
+    )
+    expect(error.message).toContain(
+      'Emails to Signers must be docspring or self, not "yes".'
+    )
+  })
+
+  it("shows DocSpring's email options, or the link type when you send the links, and a signing step for each signer", async () => {
+    const keys = async (inputData) =>
+      (
+        await appTester(dynamicFields, {
+          authData,
+          inputData: { template_id: '{{1__id}}', signer_count: '2', ...inputData },
+        })
+      ).map((f) => f.key)
+
+    const docspring = await keys({})
+    expect(docspring).toEqual(
+      expect.arrayContaining([
+        'email_subject',
+        'email_message',
+        'cc',
+        'reminder_interval_days',
+        'reminder_max_count',
+        'reply_to',
+        'notification_emails',
+        'notify_when_signed',
+        'signer_1_signing_step',
+        'signer_2_signing_step',
+      ])
+    )
+    expect(docspring).not.toContain('signing_link_type')
+
+    const self = await keys({ send_email: 'self' })
+    expect(self).toContain('signing_link_type')
+    expect(self).toContain('signer_1_signing_step')
+    expect(self).not.toContain('email_subject')
+  })
+
   it('makes 24-hour api links, or none', async () => {
     nock(API)
       .post('/api/v2/templates/tpl_1/submissions')
@@ -221,6 +406,7 @@ describe('create_signature_request', () => {
       authData,
       inputData: {
         template_id: 'tpl_1',
+        send_email: 'self',
         signing_link_type: 'api',
         signer_1_fields: ['a'],
       },
@@ -234,6 +420,7 @@ describe('create_signature_request', () => {
       authData,
       inputData: {
         template_id: 'tpl_1',
+        send_email: 'self',
         signing_link_type: 'none',
         signer_1_fields: ['a'],
       },
@@ -279,7 +466,11 @@ describe('create_signature_request', () => {
     const error = await errorFrom(
       appTester(op.perform, {
         authData,
-        inputData: { template_id: 'tpl_1', signer_1_fields: ['a'] },
+        inputData: {
+          template_id: 'tpl_1',
+          send_email: 'self',
+          signer_1_fields: ['a'],
+        },
       })
     )
     expect(error.message).toMatch(
@@ -311,6 +502,7 @@ describe('create_signature_request', () => {
       authData,
       inputData: {
         template_id: 'tpl_1',
+        send_email: 'self',
         signer_count: '2',
         signer_1_fields: ['a'],
         signer_2_fields: ['b'],
@@ -353,6 +545,7 @@ describe('create_signature_request', () => {
         authData,
         inputData: {
           template_id: 'tpl_1',
+          send_email: 'self',
           signer_count: '3',
           signer_1_fields: ['a'],
           signer_2_fields: ['b'],
@@ -382,7 +575,11 @@ describe('create_signature_request', () => {
     const error = await errorFrom(
       appTester(op.perform, {
         authData,
-        inputData: { template_id: 'tpl_1', signer_1_fields: ['a'] },
+        inputData: {
+          template_id: 'tpl_1',
+          send_email: 'self',
+          signer_1_fields: ['a'],
+        },
       })
     )
     expect(error.message).toMatch(
@@ -404,7 +601,11 @@ describe('create_signature_request', () => {
     const error = await errorFrom(
       appTester(op.perform, {
         authData,
-        inputData: { template_id: 'tpl_1', signer_1_fields: ['a'] },
+        inputData: {
+          template_id: 'tpl_1',
+          send_email: 'self',
+          signer_1_fields: ['a'],
+        },
       })
     )
     expect(error.message).toBe(
