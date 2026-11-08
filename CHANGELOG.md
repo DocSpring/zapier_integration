@@ -7,8 +7,9 @@
   and `[[ account.name ]]`, sent to DocSpring as `{{ signer.name }}` and so on. Zapier
   reads `{{ }}` as its own fields, so a typed `{{ signer.name }}` came out empty. Other
   text in square brackets is sent as typed. Check Data sends them the same way.
-- Email Subject's help gives the default subject as "*Sender* sent you *document* to sign":
-  Zapier dropped the `<your name>` and `<document>` it said before.
+- Email Subject's help gives the default subject as
+  `[[ sender.name ]] sent you [[ document.name ]] to sign`: Zapier dropped the
+  `<your name>` and `<document>` it said before.
 - An error lists each problem once: the details the message already names no longer get a
   line of their own as well.
 
