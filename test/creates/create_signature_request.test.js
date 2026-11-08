@@ -384,6 +384,8 @@ describe('create_signature_request', () => {
       expect(help).toContain('`[[ signer.name ]]`')
       expect(help).toContain('`[[ account.name ]]`')
       expect(help).toContain('Zapier reads `{{ }}` as its own fields')
+      // Zapier's help text drops anything that looks like an HTML tag.
+      expect(help).not.toMatch(/<[a-z]/i)
     }
   })
 
