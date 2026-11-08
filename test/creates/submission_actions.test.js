@@ -60,7 +60,7 @@ describe('check_data', () => {
     const settings = {
       template_id: 'tpl_1',
       signing_order: 'sequential',
-      email_subject: 'Please sign',
+      email_subject: 'Please sign, [[ signer.name ]]',
       cc: ['records@example.com'],
       reminder_interval_days: '3',
       reminder_max_count: '2',
@@ -88,7 +88,7 @@ describe('check_data', () => {
       ],
       send_email: true,
       signing_order: 'sequential',
-      email_subject: 'Please sign',
+      email_subject: 'Please sign, {{ signer.name }}',
       cc: ['records@example.com'],
       reminders: { interval_days: 3, max_count: 2 },
     })

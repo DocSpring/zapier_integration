@@ -16,7 +16,7 @@ describe('authentication', () => {
       reqheaders: {
         authorization:
           'Basic ' + Buffer.from('api_test_abc:sekret').toString('base64'),
-        'user-agent': 'docspring-zapier/2.1.0',
+        'user-agent': 'docspring-zapier/2.1.1',
       },
     })
       .get('/api/v2/authentication')

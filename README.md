@@ -51,6 +51,11 @@ ID**, and an **API Token Secret**. The Basic `Authorization` header, the
   Files, Expire Submission, Combine PDFs, Create Signature Request, Create Signing Link,
   Create Template, Replace Template PDF, Copy Template, Move Template, Publish Template
   Version, Add / Update / Remove Template Fields, Create Folder.
+- **DocSpring's email variables** go in square brackets: Create Signature Request's (and
+  Check Data's) Email Subject and Message change `[[ signer.name ]]`, `[[ signer.email ]]`,
+  `[[ document.name ]]`, `[[ sender.name ]]` and `[[ account.name ]]` to the `{{ }}` form
+  DocSpring takes (`lib/signerEmails.js`). Zapier reads every `{{ }}` as one of its own
+  field mappings, has no way to escape it, and sends a mapping it can't find as empty text.
 - **Searches**: Get Submission, Find Submissions, Get Submission Batch, Get Combined PDF,
   Get Signature Request, Find Templates, Get Template, List Template Fields, Get Template
   Page Images, List Folders. **Find or Create Folder** pairs List Folders with Create

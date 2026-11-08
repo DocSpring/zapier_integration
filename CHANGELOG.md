@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 2.1.1
 
+- Email Subject and Message take DocSpring's variables in square brackets:
+  `[[ signer.name ]]`, `[[ signer.email ]]`, `[[ document.name ]]`, `[[ sender.name ]]`
+  and `[[ account.name ]]`, sent to DocSpring as `{{ signer.name }}` and so on. Zapier
+  reads `{{ }}` as its own fields, so a typed `{{ signer.name }}` came out empty. Other
+  text in square brackets is sent as typed. Check Data sends them the same way.
 - An error lists each problem once: the details the message already names no longer get a
   line of their own as well.
 
