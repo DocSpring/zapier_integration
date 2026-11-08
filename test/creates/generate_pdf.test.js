@@ -413,7 +413,6 @@ describe('generate_pdf', () => {
     expect(error.message).toBe(
       [
         "DocSpring API error 422 invalid_data: The data doesn't match the template's fields: /data/last_name is required",
-        '/data/last_name: is required',
         'Submission: sub_bad',
         'Request ID: req_1234567890abcdef01',
       ].join('\n')

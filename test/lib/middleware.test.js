@@ -131,6 +131,55 @@ describe('checkForErrors', () => {
     )
   })
 
+  it("leaves out the details the message already lists, as API v2's summary writes them", () => {
+    const details = [
+      { code: 'required', message: 'is required', pointer: '/data/a' },
+      { code: 'type', message: 'must be a boolean', parameter: 'wait' },
+      { code: 'invalid', message: "isn't valid JSON", pointer: '' },
+      { code: 'required', message: 'is required', pointer: '/data/d' },
+      { code: 'required', message: 'is required', pointer: '/data/e' },
+    ]
+    const body = apiError(
+      'invalid_request',
+      "Invalid request: /data/a is required; wait must be a boolean; the request body isn't valid JSON (and 2 more)",
+      { details }
+    )
+    expect(() => checkForErrors(res(422, body), z, bundle)).toThrow(
+      [
+        "DocSpring API error 422 invalid_request: Invalid request: /data/a is required; wait must be a boolean; the request body isn't valid JSON (and 2 more)",
+        '/data/d: is required',
+        '/data/e: is required',
+        'Request ID: req_1234567890abcdef01',
+      ].join('\n')
+    )
+  })
+
+  it("keeps a listed detail's line when it adds a batch's submission ID", () => {
+    const body = apiError(
+      'invalid_data',
+      'No PDFs were generated: 1 of 2 submissions is invalid: /submissions/1/data/a is required',
+      {
+        details: [
+          {
+            code: 'required',
+            message: 'is required',
+            pointer: '/submissions/1/data/a',
+            submission_id: 'sub_2',
+          },
+        ],
+        submission_batch_id: 'sbb_1',
+      }
+    )
+    expect(() => checkForErrors(res(422, body), z, bundle)).toThrow(
+      [
+        'DocSpring API error 422 invalid_data: No PDFs were generated: 1 of 2 submissions is invalid: /submissions/1/data/a is required',
+        '/submissions/1/data/a: is required (Submission: sub_2)',
+        'Submission batch: sbb_1',
+        'Request ID: req_1234567890abcdef01',
+      ].join('\n')
+    )
+  })
+
   it('never shows [object Object]', () => {
     let message
     try {
