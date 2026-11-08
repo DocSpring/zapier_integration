@@ -22,9 +22,9 @@ function sourceFiles(dir) {
 
 // Pins the app-level settings and operation set (sc-5981 spec).
 describe('app definition', () => {
-  it('is version 2.1.0', () => {
-    expect(pkg.version).toBe('2.1.0')
-    expect(App.version).toBe('2.1.0')
+  it('is version 2.1.1', () => {
+    expect(pkg.version).toBe('2.1.1')
+    expect(App.version).toBe('2.1.1')
   })
 
   it('never calls API v1', () => {

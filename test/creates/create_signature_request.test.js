@@ -345,6 +345,50 @@ describe('create_signature_request', () => {
     })
   })
 
+  it("sends [[ signer.name ]] and DocSpring's other variables as {{ }}, which Zapier would empty", async () => {
+    let body
+    nock(API)
+      .post('/api/v2/templates/tpl_1/submissions', (b) => {
+        body = b
+        return true
+      })
+      .reply(201, created)
+
+    await appTester(op.perform, {
+      authData,
+      inputData: {
+        template_id: 'tpl_1',
+        email_subject: 'Please sign, [[ signer.name ]]',
+        email_message:
+          'Hi [[signer.name]] ([[ signer.email ]]), [[ sender.name ]] at [[ account.name ]] sent ' +
+          '[[ document.name ]]. Keep [[ this ]] and [[ signer.nmae ]].',
+        signer_1_email: 'jane@example.com',
+        signer_1_fields: ['signature'],
+      },
+    })
+
+    expect(body.email_subject).toBe('Please sign, {{ signer.name }}')
+    expect(body.email_message).toBe(
+      'Hi {{ signer.name }} ({{ signer.email }}), {{ sender.name }} at {{ account.name }} sent ' +
+        '{{ document.name }}. Keep [[ this ]] and [[ signer.nmae ]].'
+    )
+  })
+
+  it('tells people to type the variables in square brackets', async () => {
+    const fields = await appTester(dynamicFields, {
+      authData,
+      inputData: { template_id: '{{1__id}}' },
+    })
+    for (const key of ['email_subject', 'email_message']) {
+      const help = fields.find((f) => f.key === key).helpText
+      expect(help).toContain('`[[ signer.name ]]`')
+      expect(help).toContain('`[[ account.name ]]`')
+      expect(help).toContain('Zapier reads `{{ }}` as its own fields')
+      // Zapier's help text drops anything that looks like an HTML tag.
+      expect(help).not.toMatch(/<[a-z]/i)
+    }
+  })
+
   it('refuses an unknown Emails to Signers value before sending anything', async () => {
     const error = await errorFrom(
       appTester(op.perform, {
