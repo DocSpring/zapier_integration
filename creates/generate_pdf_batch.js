@@ -71,7 +71,7 @@ const perform = async (z, bundle) => {
       output_formats: outputFormats(input.output_formats),
       submissions,
     }),
-    wait: shouldWait(z, input, 'Wait for the PDFs?'),
+    wait: shouldWait(z, input, 'Wait for the Submissions?'),
   })
 }
 
@@ -79,9 +79,9 @@ module.exports = {
   key: 'generate_pdf_batch',
   noun: 'Submission Batch',
   display: {
-    label: 'Generate PDFs in a Batch',
+    label: 'Create Submission Batch',
     description:
-      'Generates up to 50 PDFs in one request, from one template or several.',
+      'Creates up to 50 submissions in one request, from one template or several.',
   },
   operation: {
     inputFields: [
@@ -128,11 +128,11 @@ module.exports = {
         type: 'code',
         required: false,
         helpText:
-          'Instead of Submissions: a JSON list of up to 50 submissions, each with the properties of Generate PDF ' +
+          'Instead of Submissions: a JSON list of up to 50 submissions, each with the properties of Create Submission ' +
           '(`data`, `metadata`, `test`, `expires_in`, `field_overrides`, …) and its own `template_id` and ' +
           '`template_version` when it uses another template.',
       },
-      waitInput('PDFs'),
+      waitInput('submissions'),
     ],
     perform,
     outputFields: submissionBatch.outputFields,

@@ -220,7 +220,7 @@ describe('generate_pdf_batch', () => {
     )
     expect(error.message).toBe(
       [
-        "Some PDFs in the batch couldn't be generated (state: error): 1 of 2 failed.",
+        "Some submissions in the batch couldn't be processed (state: error): 1 of 2 failed.",
         'sub_2: image_download_failed: No image at that URL',
         'Submission batch: sbb_1',
       ].join('\n')
