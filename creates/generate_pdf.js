@@ -30,17 +30,17 @@ const perform = async (z, bundle) => {
     path: apiPath('templates', seg(input.template_id), 'submissions'),
     params: { version: text(input.version) },
     body: submissionBody(z, input),
-    wait: shouldWait(z, input, 'Wait for the PDF?'),
+    wait: shouldWait(z, input, 'Wait for the Submission?'),
   })
 }
 
 module.exports = {
   key: 'generate_pdf',
-  noun: 'PDF',
+  noun: 'Submission',
   display: {
-    label: 'Generate PDF',
+    label: 'Create Submission',
     description:
-      'Fills in a template and generates a PDF. Choose a template to see its fields.',
+      "Fills in a template and makes a submission: a PDF, or a Word template's Word document or OpenDocument file. Choose a template to see its fields.",
   },
   operation: {
     // The static inputs show straight away; the template's own fields are
@@ -60,7 +60,7 @@ module.exports = {
       expiresInInput,
       editableInput,
       fieldOverridesInput,
-      waitInput('PDF'),
+      waitInput('submission'),
       dataJsonInput(),
       templateSchemaFields(),
     ],

@@ -76,7 +76,7 @@ docspring-zapier/<version>` (so `api_logs.user_agent` counts users by version),
 Zapier stops an action's `perform` after 30 seconds, but the sync API host waits up to
 95 seconds, and when Zapier cuts a request off the integration never learns the ID of
 the record it created (and a replayed step creates a duplicate). So the operations that
-make a file (Generate PDF, Generate PDFs in a Batch, Combine PDFs, Create Template,
+make a file (Create Submission, Create Submission Batch, Combine PDFs, Create Template,
 Replace Template PDF, Generate Submission Files) send their request to the sync host
 with `wait=false`, which returns the record's ID at once, and then poll the record
 (`GET`) for up to 25 seconds from the start of the perform (its first line, so
@@ -155,7 +155,7 @@ declared (Zapier has no object output type; check D024).
 
 ## Template fields (`lib/templates.js`)
 
-Generate PDF, Check Data and Create Signature Request build inputs from
+Create Submission, Check Data and Create Signature Request build inputs from
 `GET /templates/{id}/schema?version=` (the version chosen in the action, so the fields
 match; `version` has `altersDynamicFields`). Keys are namespaced so a template field
 named `test` or `metadata` can't collide with a control input, and the prefix says how
@@ -228,6 +228,13 @@ Remove Template Fields and the signer field multi-selects get their choices from
 template's field list (one request, not paged).
 
 ## Conventions / gotchas
+
+- Name an action that makes a submission for submissions, not PDFs: a Word template's
+  submission makes a Word document or an OpenDocument file too. Keep its key
+  (`generate_pdf`, `generate_pdf_batch`): existing Zaps refer to it.
+- An action that sends submission data accepts everything the API accepts: lists,
+  nested objects, booleans and numbers as well as text (Data (JSON), and line items for
+  a template's list fields).
 
 - Field key/label must not contain "password" (Zapier check D001 treats it as a
   credential); the PDF password input is `pdf_passphrase`, sent as `password`.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.2
+
+- Generate PDF is now **Create Submission**, and Generate PDFs in a Batch is **Create
+  Submission Batch**: a Word template's submission makes a Word document or an
+  OpenDocument file as well as a PDF. Zaps that use them keep working: only the names
+  changed.
+
 ## 2.1.1
 
 - Email Subject and Message take DocSpring's variables in square brackets:
